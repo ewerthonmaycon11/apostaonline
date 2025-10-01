@@ -286,19 +286,18 @@ def aposta_multipla():
     if not selecoes or valor <= 0:
         return jsonify({"ok": False, "erro": "Dados inválidos."})
 
-    odd_total = 1.0
-    for s in selecoes:
-        try:
-            odd_total *= float(s["odd"])
-        except:
-            return jsonify({"ok": False, "erro": "Erro nas odds."})
-
-    retorno = round(valor * odd_total, 2)
+    # calcula odd total e retorno potencial
+    try:
+        odd_list = [float(s["odd"]) for s in selecoes]
+        odd_total = calc_total_odd(odd_list)
+        retorno = calc_potential(valor, odd_total)
+    except Exception as e:
+        return jsonify({"ok": False, "erro": f"Erro ao calcular odds: {e}"})
 
     conn = get_conn()
     c = conn.cursor()
 
-    # saldo do usuário
+    # pega saldo do usuário
     c.execute("SELECT saldo FROM usuarios WHERE id=%s", (session["usuario_id"],))
     user = c.fetchone()
     if not user:
@@ -313,25 +312,34 @@ def aposta_multipla():
     novo_saldo = user["saldo"] - valor
     c.execute("UPDATE usuarios SET saldo=%s WHERE id=%s", (novo_saldo, session["usuario_id"]))
 
-    # salva aposta
-    c.execute("""
-        INSERT INTO apostas (usuario_id, valor, odd_total, retorno_potencial, selecoes, data_hora)
-        VALUES (%s, %s, %s, %s, %s, %s)
-        RETURNING id
-    """, (
-        session["usuario_id"],
-        valor,
-        odd_total,
-        retorno,
-        json.dumps(selecoes),  # simples, mas dá pra usar JSONField se quiser
-        datetime.now()
-    ))
-    aposta_id = c.fetchone()["id"]
+    # salva na tabela bets
+    now = datetime.now().isoformat()
+    c.execute(
+        "INSERT INTO bets (usuario_id, stake, total_odd, potential, status, criado_em) "
+        "VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
+        (session["usuario_id"], valor, odd_total, retorno, "pendente", now)
+    )
+    bet_id = c.fetchone()[0]
+
+    # salva seleções em bet_selections
+    for s in selecoes:
+        c.execute(
+            "INSERT INTO bet_selections (bet_id, jogo_id, tipo, escolha, odd, resultado) "
+            "VALUES (%s, %s, %s, %s, %s, %s)",
+            (
+                bet_id,
+                s.get("jogo_id"),
+                s.get("tipo"),
+                s.get("escolha"),
+                float(s.get("odd")),
+                "pendente"
+            )
+        )
 
     conn.commit()
     conn.close()
 
-    return jsonify({"ok": True, "retorno": retorno, "aposta_id": aposta_id})
+    return jsonify({"ok": True, "retorno": retorno, "bet_id": bet_id})
 
 @app.route("/jogo/<int:jogo_id>")
 def ver_jogo(jogo_id):
@@ -741,6 +749,7 @@ def logout():
 # ------------------ RODAR ------------------
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
 
 
 
