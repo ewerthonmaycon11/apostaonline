@@ -4,6 +4,7 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 import psycopg2, psycopg2.extras
 from datetime import datetime
 import os
+import json
 
 app = Flask(__name__)
 app.secret_key = "supersegredo123"
@@ -740,6 +741,7 @@ def logout():
 # ------------------ RODAR ------------------
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
 
 
 
