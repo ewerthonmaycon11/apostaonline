@@ -1,49 +1,53 @@
 {% extends "base.html" %}
+{% block title %}Histórico de Apostas{% endblock %}
+
 {% block conteudo %}
-    
 <div class="container py-4">
-    <h2 class="fw-bold text-primary mb-4">📜 Meu Histórico de Apostas</h2>
+  <h3 class="mb-4">📜 Histórico de Apostas</h3>
 
-    {% if bets|length == 0 %}
-        <p class="text-center text-muted">Você ainda não fez nenhuma aposta.</p>
-    {% else %}
-        {% for aposta in bets %}
-        <div class="card mb-3 shadow-sm">
-            <div class="card-body">
-                
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <p class="fw-bold mb-0">ID {{ aposta.id }} • {{ aposta.criado_em.split('T')[0] }}</p>
-                    <span class="badge 
-                        {% if aposta.status == 'ganho' %}bg-success
-                        {% elif aposta.status == 'perdido' %}bg-danger
-                        {% else %}bg-secondary{% endif %}">
-                        {{ aposta.status | capitalize }}
-                    </span>
-                </div>
-                
-                <p class="mb-3 small text-muted">
-                    Stake: R$ {{ '%.2f' % aposta.stake }} — Odd total: {{ '%.2f' % aposta.total_odd }} — Potencial: R$ {{ '%.2f' % aposta.potential }}
-                </p>
-                
-                <hr class="my-2">
-                
-                {% for selecao in aposta.selections %}
-                <p class="mb-1 small">
-                    [{{ selecao.tipo | capitalize }}] 
-                    
-                    Escolha: <span class="fw-bold text-dark">{{ selecao.display_escolha }}</span> 
-                    
-                    — Odd: **{{ '%.2f' % selecao.odd }}** • Status: 
-                    <span class="text-primary">{{ selecao.resultado | capitalize }}</span>
-                    
-                    <span class="text-muted fst-italic">({{ selecao.time_a }} vs {{ selecao.time_b }})</span>
-                </p>
-                {% endfor %}
-
-            </div>
+  {% if apostas %}
+    {% for aposta in apostas %}
+      <div class="aposta mb-4 p-3 border rounded shadow-sm bg-light">
+        <div>
+          <strong>ID {{ aposta.id }}</strong> • {{ aposta.data }}
         </div>
-        {% endfor %}
-    {% endif %}
+        <div>
+          <span class="badge 
+            {% if aposta.status == 'Ganho' %}bg-success
+            {% elif aposta.status == 'Perdido' %}bg-danger
+            {% else %}bg-warning text-dark{% endif %}">
+            {{ aposta.status }}
+          </span>
+        </div>
+        <div class="mt-2">
+          Stake: R$ {{ "%.2f"|format(aposta.stake) }} —
+          Odd total: {{ aposta.odd_total }} —
+          Potencial: R$ {{ "%.2f"|format(aposta.potencial) }}
+        </div>
 
+        <!-- Detalhes dos jogos -->
+        {% if detalhes_por_aposta.get(aposta.id) %}
+          <ul class="mt-3 list-group">
+            {% for item in detalhes_por_aposta[aposta.id] %}
+              <li class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                  {{ item.nome_casa }} x {{ item.nome_fora }}<br>
+                  <small>{{ item.selecao }} — Odd: {{ item.odd }}</small>
+                </div>
+                <span class="badge 
+                  {% if item.resultado == 'ganho' %}bg-success
+                  {% elif item.resultado == 'perdido' %}bg-danger
+                  {% else %}bg-secondary{% endif %}">
+                  {{ item.resultado }}
+                </span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+      </div>
+    {% endfor %}
+  {% else %}
+    <p class="text-muted">Nenhuma aposta encontrada no histórico.</p>
+  {% endif %}
 </div>
 {% endblock %}
