@@ -13,6 +13,12 @@ DB_URL = os.getenv(
     "postgresql://apostaonline_user:rM2mWO5FaaCmMgXEmp2pharDko1Cc1SE@dpg-d3e71fh5pdvs738qrmn0-a.oregon-postgres.render.com/apostaonline"
 )
 
+
+def get_db_connection():
+    conn = psycopg2.connect(DB_URL)
+    return conn
+
+
 # ------------------ Helpers DB ------------------
 def get_conn():
     # Usando RealDictCursor em todos os lugares para garantir que os resultados venham como dicionários
@@ -138,45 +144,28 @@ def calc_potential(stake, total_odd):
 
 
 @app.route("/")
-def index():
-    if session.get("usuario_id"):
+def home():
+    if "usuario_id" in session:
         return redirect(url_for("dashboard"))
-    return render_template("login.html")
-
-from datetime import timedelta
-
-# Configura o tempo de vida da sessão (exemplo: 6 horas)
-app.permanent_session_lifetime = timedelta(hours=6)
+    return redirect(url_for("login"))
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        email = request.form.get("email")
-        senha = request.form.get("senha")
-
-        conn = psycopg2.connect(DB_URL)
-        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-
-        cur.execute("SELECT * FROM usuarios WHERE email = %s", (email,))
-        usuario = cur.fetchone()
-
-        cur.close()
+        username = request.form["username"]
+        senha = request.form["senha"]
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        cursor.execute("SELECT * FROM usuarios WHERE username=%s AND senha=%s", (username, senha))
+        user = cursor.fetchone()
+        cursor.close()
         conn.close()
-
-        if usuario and usuario["senha"] == senha:  # ideal: usar hash
-            session.permanent = True
-            session["usuario_id"] = usuario["id"]
-            session["usuario_nome"] = usuario["nome"]
-            session["is_admin"] = usuario["is_admin"]
-
-            flash("Login realizado com sucesso!", "success")
+        if user:
+            session["usuario_id"] = user["id"]
             return redirect(url_for("dashboard"))
-
         else:
-            flash("Credenciais inválidas. Tente novamente.", "danger")
-
+            flash("Usuário ou senha incorretos", "danger")
     return render_template("login.html")
-
 
 
 @app.route("/registrar", methods=["GET", "POST"])
@@ -515,41 +504,44 @@ def historico():
 
     usuario_id = session["usuario_id"]
 
-    # Busca todas as apostas do usuário
-    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-    cursor.execute("""
-        SELECT *
-        FROM apostas
-        WHERE usuario_id = %s
-        ORDER BY data DESC
-    """, (usuario_id,))
-    apostas = cursor.fetchall()
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
-    # Busca os detalhes de cada aposta
-    detalhes_por_aposta = {}
-    for aposta in apostas:
+        # Pega todas as apostas do usuário
         cursor.execute("""
-            SELECT time_a, time_b, escolha, odd, resultado
-            FROM detalhes
-            WHERE aposta_id = %s
-        """, (aposta["id"],))
-        detalhes = cursor.fetchall()
+            SELECT *
+            FROM apostas
+            WHERE usuario_id = %s
+            ORDER BY data DESC
+        """, (usuario_id,))
+        apostas = cursor.fetchall()
 
-        # Converte cada detalhe em dict para o template
-        detalhes_por_aposta[aposta["id"]] = [
-            {
-                "time_a": det["time_a"],
-                "time_b": det["time_b"],
-                "escolha": det["escolha"],
-                "odd": det["odd"],
-                "resultado": det["resultado"]
-            } for det in detalhes
-        ]
+        detalhes_por_aposta = {}
 
-    cursor.close()
+        for aposta in apostas:
+            cursor.execute("""
+                SELECT time_a, time_b, escolha, odd, resultado
+                FROM detalhes
+                WHERE aposta_id = %s
+            """, (aposta["id"],))
+            detalhes = cursor.fetchall()
+
+            detalhes_por_aposta[aposta["id"]] = [
+                {
+                    "time_a": det["time_a"],
+                    "time_b": det["time_b"],
+                    "escolha": det["escolha"],
+                    "odd": det["odd"],
+                    "resultado": det["resultado"]
+                } for det in detalhes
+            ]
+    finally:
+        cursor.close()
+        conn.close()
 
     return render_template(
-        "historico.html",
+        "bet_history.html",
         apostas=apostas,
         detalhes_por_aposta=detalhes_por_aposta
     )
@@ -887,6 +879,7 @@ def logout():
 # ------------------ RODAR ------------------
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
 
 
 
