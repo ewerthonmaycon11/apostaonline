@@ -311,7 +311,7 @@ def aposta_multipla():
 
     # salva seleções em bet_selections com info do jogo
     for s in selecoes:
-        jogo_id = s.get("jogo_id")
+        jogo_id = s.get("jogo")
         if not jogo_id:
             continue
 
@@ -322,6 +322,7 @@ def aposta_multipla():
         time_b = jogo_info["time_b"] if jogo_info else "Indefinido"
         data_hora = jogo_info["data_hora"] if jogo_info else None
 
+        # Salva seleção (principal ou extra)
         c.execute(
             "INSERT INTO bet_selections (bet_id, jogo_id, tipo, escolha, odd, resultado) "
             "VALUES (%s, %s, %s, %s, %s, %s)",
@@ -329,13 +330,13 @@ def aposta_multipla():
                 bet_id,
                 jogo_id,
                 s.get("tipo", "Indefinido"),
-                s.get("escolha", "Indefinido"),
+                s.get("time", "Indefinido"),  # <--- Correção aqui
                 float(s.get("odd", 0)),
                 "pendente"
             )
         )
 
-        # adiciona info do jogo pro retorno JSON (opcional)
+        # adiciona info do jogo pro retorno JSON
         s["time_a"] = time_a
         s["time_b"] = time_b
         s["data_hora"] = data_hora
@@ -344,6 +345,7 @@ def aposta_multipla():
     conn.close()
 
     return jsonify({"ok": True, "retorno": retorno, "bet_id": bet_id, "selecoes": selecoes})
+
 
 
 
@@ -756,6 +758,7 @@ def logout():
 # ------------------ RODAR ------------------
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
 
 
 
