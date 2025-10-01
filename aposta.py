@@ -322,7 +322,7 @@ def aposta_multipla():
         valor,
         odd_total,
         retorno,
-        str(selecoes),  # simples, mas dá pra usar JSONField se quiser
+        json.dumps(selecoes),  # simples, mas dá pra usar JSONField se quiser
         datetime.now()
     ))
     aposta_id = c.fetchone()["id"]
@@ -740,6 +740,7 @@ def logout():
 # ------------------ RODAR ------------------
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
 
 
 
