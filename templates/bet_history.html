@@ -8,32 +8,29 @@
   {% for b in bets %}
     <div class="mb-3 border-bottom pb-2">
       <div class="d-flex justify-content-between">
-        <div><strong>ID {{ b.id }}</strong> • <small class="small-muted">{{ b.criado_em }}</small></div>
+        <div><strong>ID {{ b.id }}</strong> • <small class="text-muted">{{ b.criado_em }}</small></div>
         <div><strong>{{ b.status|capitalize }}</strong></div>
       </div>
-      <div class="small-muted">
-        Stake: R$ {{ '%.2f' % b.stake }} — Odd total: {{ '%.2f' % b.total_odd }} — Potencial: R$ {{ '%.2f' % b.potential }}
+      <div class="small text-muted">
+        Stake: R$ {{ '%.2f' % b.stake }} —
+        Odd total: {{ '%.2f' % b.total_odd }} —
+        Potencial: R$ {{ '%.2f' % b.potential }}
       </div>
 
       <ul class="mt-2">
         {% for s in b.selections %}
           <li>
-            {{ s.tipo|capitalize }} • 
-            {% if s.tipo == 'principal' %}
-              Escolha: {{ s.escolha }}
-            {% else %}
-              Extra: {{ s.escolha }}
-            {% endif %}
-            — Odd: {{ '%.2f' % s.odd }} • Resultado: {{ s.resultado }} 
-            {% if s.time_a and s.time_b %}
-              • {{ s.time_a }} x {{ s.time_b }} em {{ s.data_hora }}
-            {% endif %}
+            {{ s.tipo|capitalize }} • {{ s.escolha }} —
+            Odd: {{ '%.2f' % s.odd }} •
+            Resultado: {{ s.resultado }} •
+            {{ s.time_a }} x {{ s.time_b }}
+            {% if s.data_hora %} em {{ s.data_hora }}{% endif %}
           </li>
         {% endfor %}
       </ul>
     </div>
   {% else %}
-    <div class="small-muted">Você ainda não fez apostas.</div>
+    <div class="text-muted">Você ainda não fez apostas.</div>
   {% endfor %}
 </div>
 {% endblock %}
