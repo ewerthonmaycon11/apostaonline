@@ -559,7 +559,7 @@ def historico():
     cur.close()
     conn.close()
 
-    return render_template("historico.html", apostas=apostas, detalhes_por_aposta=detalhes_por_aposta)
+    return render_template("bet_history.html", apostas=apostas, detalhes_por_aposta=detalhes_por_aposta)
 
 
 # ... (O resto das suas rotas de Depósito/Saque/Admin/Logout estão OK e não precisam de alteração) ...
@@ -894,6 +894,7 @@ def logout():
 # ------------------ RODAR ------------------
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
 
 
 
