@@ -329,82 +329,7 @@ def aposta_multipla():
 
     return jsonify({"ok": True, "retorno": retorno, "bet_id": bet_id})
 
-# ------------------ ADMIN GERAL ------------------
-@app.route("/admin_dashboard")
-def admin_dashboard():
-    if not session.get("is_admin"):
-        flash("Acesso negado.", "danger")
-        return redirect(url_for("login"))
 
-    conn = get_conn()
-    c = conn.cursor()
-
-    # Transações pendentes
-    c.execute("""
-        SELECT t.*, u.nome as usuario_nome 
-        FROM transacoes t 
-        JOIN usuarios u ON t.usuario_id=u.id 
-        WHERE t.status='pendente'
-    """)
-    transacoes = [row_to_dict(r) for r in c.fetchall()]
-
-    # Apostas pendentes
-    c.execute("""
-        SELECT b.*, u.nome as usuario_nome
-        FROM bets b
-        JOIN usuarios u ON b.usuario_id = u.id
-        WHERE b.status='pendente'
-        ORDER BY b.criado_em DESC
-    """)
-    apostas_pendentes_rows = c.fetchall()
-
-    apostas_pendentes = []
-    for b in apostas_pendentes_rows:
-        bdict = row_to_dict(b)
-        # Pega seleções da aposta com info do jogo
-        c.execute("""
-            SELECT bs.*, j.time_a, j.time_b, j.data_hora 
-            FROM bet_selections bs 
-            LEFT JOIN jogos j ON bs.jogo_id = j.id 
-            WHERE bs.bet_id=%s
-        """, (b['id'],))
-        bdict['selections'] = [row_to_dict(s) for s in c.fetchall()]
-        apostas_pendentes.append(bdict)
-
-    # Apostas finalizadas
-    c.execute("""
-        SELECT b.*, u.nome as usuario_nome
-        FROM bets b
-        JOIN usuarios u ON b.usuario_id = u.id
-        WHERE b.status IN ('ganho', 'perdido')
-        ORDER BY b.criado_em DESC
-    """)
-    apostas_finalizadas_rows = c.fetchall()
-
-    apostas_finalizadas = []
-    for b in apostas_finalizadas_rows:
-        bdict = row_to_dict(b)
-        c.execute("""
-            SELECT bs.*, j.time_a, j.time_b, j.data_hora 
-            FROM bet_selections bs 
-            LEFT JOIN jogos j ON bs.jogo_id = j.id 
-            WHERE bs.bet_id=%s
-        """, (b['id'],))
-        bdict['selections'] = [row_to_dict(s) for s in c.fetchall()]
-        apostas_finalizadas.append(bdict)
-
-    # Jogos
-    c.execute("SELECT * FROM jogos ORDER BY data_hora")
-    jogos = [row_to_dict(r) for r in c.fetchall()]
-
-    conn.close()
-    return render_template(
-        "admin_dashboard.html", 
-        transacoes=transacoes, 
-        apostas_pendentes=apostas_pendentes,
-        apostas_finalizadas=apostas_finalizadas,
-        jogos=jogos
-    )
 
 @app.route("/jogo/<int:jogo_id>")
 def ver_jogo(jogo_id):
@@ -814,6 +739,7 @@ def logout():
 # ------------------ RODAR ------------------
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
 
 
 
