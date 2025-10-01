@@ -7,7 +7,7 @@
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h3 class="fw-bold text-primary">🎯 Bem-vindo, {{ usuario.nome }}</h3>
     <div class="p-3 bg-light rounded shadow-sm">
-      <span class="fw-semibold">💰 Saldo:</span>
+      <span class="fw-semibold">💰 Saldo:</span> 
       <span class="text-success fw-bold">R$ {{ "%.2f"|format(usuario.saldo) }}</span>
     </div>
   </div>
@@ -71,30 +71,26 @@
         <div class="card-body">
           <h5 class="fw-bold text-center text-primary">🧾 Seu Bilhete</h5>
           <ul class="list-group list-group-flush mb-3" id="lista-apostas"></ul>
-
           <div class="mb-3">
             <label for="valorAposta" class="form-label fw-semibold">Valor da Aposta</label>
             <input type="number" class="form-control" id="valorAposta" min="1" placeholder="R$ 10,00">
           </div>
-
           <div class="d-flex justify-content-between align-items-center mb-2">
             <span class="fw-semibold">Odd Total:</span>
             <span class="fw-bold text-success" id="oddTotal">1.00</span>
           </div>
-
           <div class="d-flex justify-content-between align-items-center mb-3">
             <span class="fw-semibold">Retorno Potencial:</span>
             <span class="fw-bold text-primary" id="retornoPotencial">R$ 0.00</span>
           </div>
-
           <div class="d-grid">
             <button class="btn btn-success" id="finalizarAposta">Finalizar Aposta</button>
           </div>
         </div>
       </div>
     </div>
-
   </div>
+
 </div>
 
 <script>
@@ -123,7 +119,6 @@ document.querySelectorAll(".add-aposta").forEach(btn => {
 function atualizarCarrinho() {
   const lista = document.getElementById("lista-apostas");
   lista.innerHTML = "";
-
   selecoes.forEach((s, i) => {
     const li = document.createElement("li");
     li.className = "list-group-item d-flex justify-content-between align-items-center";
