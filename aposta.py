@@ -504,71 +504,46 @@ def apostar():
 # ------------------ HISTÓRICO / EXIBIR APOSTAS ------------------
 @app.route("/historico")
 def historico():
-    if not session.get("usuario_id"):
+    if "user_id" not in session:
+        flash("Você precisa estar logado para ver o histórico.", "warning")
         return redirect(url_for("login"))
-    uid = session["usuario_id"]
-    conn = get_conn()
-    c = conn.cursor() # O cursor RealDictCursor está garantido no get_conn
 
-    # pega apostas do usuário
-    c.execute("SELECT * FROM bets WHERE usuario_id=%s ORDER BY criado_em DESC", (uid,))
-    bets = []
-    for b in c.fetchall():
-        bdict = row_to_dict(b)
+    conn = psycopg2.connect(DB_URL)
+    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
-        # pega seleções JUNTANDO info do jogo (time_a/time_b/data_hora)
-        c.execute("""
-            SELECT bs.*, j.time_a, j.time_b, j.data_hora
-            FROM bet_selections bs
-            LEFT JOIN jogos j ON bs.jogo_id = j.id
-            WHERE bs.bet_id = %s
-            ORDER BY bs.id
-        """, (b["id"],))
-        sels_rows = c.fetchall()
+    # Pega todas as apostas do usuário
+    cur.execute("""
+        SELECT id, data, status, stake, odd_total, potencial
+        FROM apostas
+        WHERE usuario_id = %s
+        ORDER BY data DESC
+    """, (session["user_id"],))
+    apostas = cur.fetchall()
 
-        selections = []
-        for s in sels_rows:
-            sd = row_to_dict(s)
-            
-            # 💡 CORREÇÃO PRINCIPAL: Formata a escolha para exibição
-            choice_value = sd.get("escolha")
-            display_choice = choice_value
+    # Pega os detalhes das apostas (itens/jogos)
+    cur.execute("""
+        SELECT ai.aposta_id, j.nome_casa, j.nome_fora, ai.selecao, ai.odd, ai.resultado
+        FROM aposta_itens ai
+        JOIN jogos j ON j.id = ai.jogo_id
+        WHERE ai.aposta_id IN (
+            SELECT id FROM apostas WHERE usuario_id = %s
+        )
+    """, (session["user_id"],))
+    detalhes = cur.fetchall()
 
-            # Se for uma aposta principal (que pode ter 'A', 'X', 'B' como valor de escolha)
-            if sd.get("tipo") == "principal":
-                if choice_value == sd.get("time_a"):
-                    # Já está com o nome do time
-                    pass 
-                elif choice_value == sd.get("time_b"):
-                    # Já está com o nome do time
-                    pass
-                elif choice_value == "Empate":
-                    # Já está com o nome "Empate"
-                    pass
-                else:
-                    # Tratamento de compatibilidade antiga (se a escolha for só a letra)
-                    if choice_value == "A":
-                        display_choice = sd.get("time_a")
-                    elif choice_value == "B":
-                        display_choice = sd.get("time_b")
-                    elif choice_value == "X":
-                        display_choice = "Empate"
-            
-            # Define o campo final para o template
-            sd["display_escolha"] = display_choice or "Indefinido"
+    # Organiza os detalhes por aposta_id
+    detalhes_por_aposta = {}
+    for d in detalhes:
+        aposta_id = d["aposta_id"]
+        if aposta_id not in detalhes_por_aposta:
+            detalhes_por_aposta[aposta_id] = []
+        detalhes_por_aposta[aposta_id].append(d)
 
-            # O restante do seu tratamento (data/hora)
-            dh = sd.get("data_hora")
-            if isinstance(dh, datetime):
-                sd["data_hora"] = dh.isoformat()
-                
-            selections.append(sd)
-
-        bdict["selections"] = selections
-        bets.append(bdict)
-
+    cur.close()
     conn.close()
-    return render_template("bet_history.html", bets=bets)
+
+    return render_template("historico.html", apostas=apostas, detalhes_por_aposta=detalhes_por_aposta)
+
 
 
 # ... (O resto das suas rotas de Depósito/Saque/Admin/Logout estão OK e não precisam de alteração) ...
@@ -903,6 +878,7 @@ def logout():
 # ------------------ RODAR ------------------
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
 
 
 
