@@ -1,46 +1,26 @@
 {% extends "base.html" %}
+{% block title %}Minhas Apostas{% endblock %}
+
 {% block conteudo %}
+<h4 class="mb-3">Histórico de Apostas</h4>
 
-<div class="container py-4">
-  <h2 class="mb-4">📜 Histórico de Apostas</h2>
+<div class="card p-3">
+  {% for b in bets %}
+    <div class="mb-3 border-bottom pb-2">
+      <div class="d-flex justify-content-between">
+        <div><strong>ID {{ b.id }}</strong> • <small class="small-muted">{{ b.criado_em }}</small></div>
+        <div><strong>{{ b.status|capitalize }}</strong></div>
+      </div>
+      <div class="small-muted">Stake: R$ {{ '%.2f' % b.stake }} — Odd total: {{ '%.2f' % b.total_odd }} — Potencial: R$ {{ '%.2f' % b.potential }}</div>
 
-  {% if apostas %}
-    <table class="table table-striped shadow-sm rounded">
-      <thead class="table-dark">
-        <tr>
-          <th>ID</th>
-          <th>Valor</th>
-          <th>Potencial</th>
-          <th>Status</th>
-          <th>Criada em</th>
-          <th>Seleções</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for aposta in apostas %}
-          <tr>
-            <td>{{ aposta.id }}</td>
-            <td>R$ {{ "%.2f"|format(aposta.stake or 0) }}</td>
-            <td>R$ {{ "%.2f"|format(aposta.potential or 0) }}</td>
-            <td>{{ aposta.status|capitalize }}</td>
-            <td>{{ aposta.criado_em }}</td>
-            <td>
-              <ul class="mb-0">
-                {% for sel in aposta.selecoes %}
-                  <li>
-                    <strong>{{ sel.tipo|capitalize }}:</strong> {{ sel.escolha or "Indefinido" }} (Odd: {{ "%.2f"|format(sel.odd or 1) }})<br>
-                    <em>{{ sel.time_a or "Time A" }} vs {{ sel.time_b or "Time B" }} - {{ sel.data_hora or "Data não definida" }}</em>
-                  </li>
-                {% endfor %}
-              </ul>
-            </td>
-          </tr>
+      <ul class="mt-2">
+        {% for s in b.selections %}
+          <li>{{ s.tipo }} • {{ s.escolha }} — Odd: {{ '%.2f' % s.odd }} • Resultado: {{ s.resultado }}</li>
         {% endfor %}
-      </tbody>
-    </table>
+      </ul>
+    </div>
   {% else %}
-    <p>Nenhuma aposta encontrada.</p>
-  {% endif %}
+    <div class="small-muted">Você ainda não fez apostas.</div>
+  {% endfor %}
 </div>
-
 {% endblock %}
