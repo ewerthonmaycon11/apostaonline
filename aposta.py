@@ -497,6 +497,7 @@ def apostar():
 # ------------------ HISTÓRICO / EXIBIR APOSTAS ------------------
 # ------------------ HISTÓRICO / EXIBIR APOSTAS ------------------
 # ------------------ HISTÓRICO / EXIBIR APOSTAS ------------------
+# -------------------- Histórico de apostas --------------------
 @app.route("/historico")
 def historico():
     if "usuario_id" not in session:
@@ -504,47 +505,34 @@ def historico():
 
     usuario_id = session["usuario_id"]
 
-    conn = get_db_connection()
-    try:
-        cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    # Conexão com o banco
+    conn = psycopg2.connect(DB_URL)
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
-        # Pega todas as apostas do usuário
+    # Pega todas as apostas do usuário, ordenando pelo ID descendente (mais recentes primeiro)
+    cursor.execute("""
+        SELECT *
+        FROM apostas
+        WHERE usuario_id = %s
+        ORDER BY id DESC
+    """, (usuario_id,))
+    apostas = cursor.fetchall()
+
+    # Pega detalhes de cada aposta
+    detalhes_por_aposta = {}
+    for aposta in apostas:
         cursor.execute("""
             SELECT *
-            FROM apostas
-            WHERE usuario_id = %s
-            ORDER BY data DESC
-        """, (usuario_id,))
-        apostas = cursor.fetchall()
+            FROM detalhes_aposta
+            WHERE aposta_id = %s
+        """, (aposta["id"],))
+        detalhes_por_aposta[aposta["id"]] = cursor.fetchall()
 
-        detalhes_por_aposta = {}
+    cursor.close()
+    conn.close()
 
-        for aposta in apostas:
-            cursor.execute("""
-                SELECT time_a, time_b, escolha, odd, resultado
-                FROM detalhes
-                WHERE aposta_id = %s
-            """, (aposta["id"],))
-            detalhes = cursor.fetchall()
+    return render_template("historico.html", apostas=apostas, detalhes_por_aposta=detalhes_por_aposta)
 
-            detalhes_por_aposta[aposta["id"]] = [
-                {
-                    "time_a": det["time_a"],
-                    "time_b": det["time_b"],
-                    "escolha": det["escolha"],
-                    "odd": det["odd"],
-                    "resultado": det["resultado"]
-                } for det in detalhes
-            ]
-    finally:
-        cursor.close()
-        conn.close()
-
-    return render_template(
-        "bet_history.html",
-        apostas=apostas,
-        detalhes_por_aposta=detalhes_por_aposta
-    )
 
 
 # ... (O resto das suas rotas de Depósito/Saque/Admin/Logout estão OK e não precisam de alteração) ...
@@ -879,6 +867,7 @@ def logout():
 # ------------------ RODAR ------------------
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
 
 
 
