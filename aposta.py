@@ -1,4 +1,3 @@
-
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 import psycopg2, psycopg2.extras
 from datetime import datetime
@@ -16,11 +15,13 @@ DB_URL = os.getenv(
 
 # ------------------ Helpers DB ------------------
 def get_conn():
+    # Usando RealDictCursor em todos os lugares para garantir que os resultados venham como dicionários
     return psycopg2.connect(DB_URL, cursor_factory=psycopg2.extras.RealDictCursor)
 
 def row_to_dict(row):
     if row is None:
         return None
+    # Como usamos RealDictCursor, já é um dicionário, mas mantemos o retorno
     return dict(row)
 
 # ------------------ Inicializa DB ------------------
@@ -80,6 +81,11 @@ def init_db():
     );
     ''')
 
+    # Seleções de Apostas
+    # NOTA: Removemos as colunas time_a/time_b/data_hora pois o LEFT JOIN já faz o trabalho,
+    # garantindo que a consulta na rota /historico busque os dados ATUAIS do jogo.
+    # Se você quiser armazenar um "snapshot" dos dados do jogo no momento da aposta,
+    # reintroduza as colunas e salve-as no INSERT abaixo.
     c.execute('''
     CREATE TABLE IF NOT EXISTS bet_selections (
         id SERIAL PRIMARY KEY,
@@ -101,19 +107,6 @@ def init_db():
         valor REAL NOT NULL,
         status TEXT DEFAULT 'pendente',
         criado_em TEXT
-    );
-    ''')
-
-    # Tabela apostas multipla
-    c.execute('''
-    CREATE TABLE IF NOT EXISTS apostas (
-        id SERIAL PRIMARY KEY,
-        usuario_id INT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
-        valor NUMERIC(10,2) NOT NULL,
-        odd_total NUMERIC(10,2) NOT NULL,
-        retorno_potencial NUMERIC(10,2) NOT NULL,
-        selecoes JSONB NOT NULL,
-        data_hora TIMESTAMP NOT NULL DEFAULT NOW()
     );
     ''')
 
@@ -144,28 +137,10 @@ def calc_potential(stake, total_odd):
 # ------------------ ROTAS ------------------
 @app.route("/update_schema")
 def update_schema():
-    conn = get_conn()
-    c = conn.cursor()
-    try:
-        c.execute("""
-            ALTER TABLE bet_selections
-            ADD COLUMN IF NOT EXISTS time_a TEXT,
-            ADD COLUMN IF NOT EXISTS time_b TEXT,
-            ADD COLUMN IF NOT EXISTS data_hora TEXT
-        """)
-        conn.commit()
-        msg = "✅ Colunas adicionadas com sucesso na tabela bet_selections!"
-    except Exception as e:
-        conn.rollback()
-        msg = f"❌ Erro ao alterar tabela: {e}"
-    finally:
-        conn.close()
-    return msg
-
-
-
-
-
+    # Removendo a tentativa de ALTER TABLE, pois o LEFT JOIN no /historico é a abordagem correta.
+    # Se quiser forçar o snapshot do jogo na aposta, você precisará reintroduzir o ALTER TABLE aqui
+    # e ajustar os INSERTs nas rotas /apostar e /aposta_multipla
+    return "O uso de LEFT JOIN foi mantido para carregar o histórico. Nenhuma alteração de schema necessária."
 
 @app.route("/")
 def index():
@@ -231,7 +206,7 @@ def dashboard():
         return redirect(url_for("login"))
 
     conn = get_conn()
-    c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    c = conn.cursor()
 
     # pega usuario
     c.execute("SELECT id, nome, email, saldo FROM usuarios WHERE id=%s", (session["usuario_id"],))
@@ -277,7 +252,7 @@ def dashboard():
 
     return render_template("dashboard.html", usuario=usuario, jogos=jogos)
 
-# ------------------ APOSTA MÚLTIPLA ------------------
+# ------------------ APOSTA MÚLTIPLA (AJAX) ------------------
 @app.route("/aposta_multipla", methods=["POST"])
 def aposta_multipla():
     if not session.get("usuario_id"):
@@ -302,7 +277,7 @@ def aposta_multipla():
         return jsonify({"ok": False, "erro": f"Erro ao calcular odds: {e}"})
 
     conn = get_conn()
-    c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    c = conn.cursor()
 
     # pega saldo do usuário
     c.execute("SELECT saldo FROM usuarios WHERE id=%s", (session["usuario_id"],))
@@ -329,33 +304,45 @@ def aposta_multipla():
         return jsonify({"ok": False, "erro": "Erro ao criar aposta."})
 
     bet_id = bet_row["id"]
+    final_selecoes = [] # Lista final para retorno JSON
 
     # salva seleções em bet_selections
     for s in selecoes:
-        jogo_id = s.get("jogo_id")  # ✅ pegar o correto
-        if not jogo_id:
+        try:
+            jogo_id = int(s.get("jogo_id")) # ⚠️ CRUCIAL: Garante que é um inteiro
+        except (TypeError, ValueError):
+            # Se não conseguir o ID do jogo, a seleção não será salva
             continue
-
+        
+        # Pega info do jogo para salvar no retorno e garantir o link (embora não seja mais necessário
+        # salvar time_a/b no bet_selections, mantemos a consulta para o retorno JSON)
         c.execute("SELECT time_a, time_b, data_hora FROM jogos WHERE id=%s", (jogo_id,))
         jogo_info = c.fetchone()
-        time_a = jogo_info["time_a"] if jogo_info else "Indefinido"
-        time_b = jogo_info["time_b"] if jogo_info else "Indefinido"
-        data_hora = jogo_info["data_hora"] if jogo_info else None
+        
+        # Se não encontrar o jogo, pula (evita salvar seleção inválida)
+        if not jogo_info:
+            continue
+            
+        time_a = jogo_info["time_a"]
+        time_b = jogo_info["time_b"]
+        data_hora = jogo_info["data_hora"]
 
-        escolha = s.get("escolha", "Indefinido")  # ✅ pegar escolha correta
+        escolha = s.get("escolha", "Indefinido")
         tipo = s.get("tipo", "Indefinido")
         odd = float(s.get("odd", 0))
-
+        
+        # Insere APENAS o jogo_id e os detalhes da aposta no bet_selections
         c.execute(
             "INSERT INTO bet_selections (bet_id, jogo_id, tipo, escolha, odd, resultado) "
             "VALUES (%s, %s, %s, %s, %s, %s)",
             (bet_id, jogo_id, tipo, escolha, odd, "pendente")
         )
 
-        # adiciona info do jogo pro retorno JSON
+        # Adiciona info do jogo pro retorno JSON (para o dashboard atualizar)
         s["time_a"] = time_a
         s["time_b"] = time_b
         s["data_hora"] = data_hora
+        final_selecoes.append(s)
 
     # só agora desconta o saldo
     novo_saldo = user["saldo"] - valor
@@ -363,12 +350,9 @@ def aposta_multipla():
 
     conn.commit()
     conn.close()
-
-    return jsonify({"ok": True, "retorno": retorno, "bet_id": bet_id, "selecoes": selecoes})
-
-
-
-
+    
+    # Retorna as seleções atualizadas para o frontend
+    return jsonify({"ok": True, "retorno": retorno, "bet_id": bet_id, "selecoes": final_selecoes})
 
 
 @app.route("/jogo/<int:jogo_id>")
@@ -399,7 +383,7 @@ def api_calc():
     potential = calc_potential(stake, total_odd)
     return jsonify({"total_odd": total_odd, "potential": potential})
 
-# ------------------ APOSTAR (single / multipla) ------------------
+# ------------------ APOSTAR (Formulário Simples) ------------------
 @app.route("/apostar", methods=["POST"])
 def apostar():
     if not session.get("usuario_id"):
@@ -408,10 +392,10 @@ def apostar():
     usuario_id = session["usuario_id"]
 
     if request.is_json:
-        payload = request.get_json()
-        stake = float(payload.get("stake", 0))
-        selections = payload.get("selections", [])
+        # Se for JSON, delega para aposta_multipla (boa prática)
+        return aposta_multipla() 
     else:
+        # Lógica para formulário simples (POST normal)
         stake = float(request.form.get("valor", 0))
         jogo_id = request.form.get("jogo_id")
         principal = request.form.get("aposta_principal")
@@ -419,28 +403,51 @@ def apostar():
         selections = []
         conn = get_conn()
         c = conn.cursor()
+        
         if jogo_id:
-            c.execute("SELECT * FROM jogos WHERE id=%s", (int(jogo_id),))
+            try:
+                jogo_id = int(jogo_id)
+            except ValueError:
+                conn.close()
+                flash("ID de jogo inválido.", "danger")
+                return redirect(url_for("dashboard"))
+
+            c.execute("SELECT * FROM jogos WHERE id=%s", (jogo_id,))
             jogo = c.fetchone()
             if not jogo:
                 conn.close()
                 flash("Jogo inválido.", "danger")
                 return redirect(url_for("dashboard"))
+            
+            # CRUCIAL: Adicionar a seleção principal
             if principal == "A":
                 selections.append({"jogo_id": jogo["id"], "tipo": "principal", "escolha": "A", "odd": jogo["odd_a"]})
             elif principal == "X":
                 selections.append({"jogo_id": jogo["id"], "tipo": "principal", "escolha": "X", "odd": jogo["odd_x"]})
             elif principal == "B":
                 selections.append({"jogo_id": jogo["id"], "tipo": "principal", "escolha": "B", "odd": jogo["odd_b"]})
+            
+            # CRUCIAL: Adicionar as seleções extras
             for exid in extras_ids:
-                c.execute("SELECT * FROM extras WHERE id=%s", (int(exid),))
+                try:
+                    exid_int = int(exid)
+                except ValueError:
+                    continue
+                
+                c.execute("SELECT * FROM extras WHERE id=%s", (exid_int,))
                 row = c.fetchone()
                 if row:
                     selections.append({"jogo_id": row["jogo_id"], "tipo": "extra", "escolha": row["descricao"], "odd": row["odd"]})
+        
+        # Fecha a conexão após pegar as seleções
         conn.close()
 
     if stake <= 0:
         flash("Valor de aposta precisa ser maior que zero.", "warning")
+        return redirect(url_for("dashboard"))
+
+    if not selections:
+        flash("Selecione pelo menos uma aposta.", "warning")
         return redirect(url_for("dashboard"))
 
     conn = get_conn()
@@ -461,25 +468,32 @@ def apostar():
               (usuario_id, stake, total_odd, potential, "pendente", now))
     bet_id = c.fetchone()["id"]
 
+    # CRUCIAL: Salvar as seleções com o jogo_id
     for s in selections:
+        # Garante que o jogo_id está presente (deve estar, devido à lógica acima)
+        jogo_id = s.get("jogo_id")
+        if not jogo_id:
+            continue # Pula se o link com o jogo falhou
+
         c.execute("INSERT INTO bet_selections (bet_id, jogo_id, tipo, escolha, odd, resultado) VALUES (%s,%s,%s,%s,%s,%s)",
-                  (bet_id, s.get("jogo_id"), s.get("tipo"), s.get("escolha"), float(s.get("odd")), "pendente"))
+                  (bet_id, jogo_id, s.get("tipo"), s.get("escolha"), float(s.get("odd")), "pendente"))
 
     c.execute("UPDATE usuarios SET saldo = saldo - %s WHERE id = %s", (stake, usuario_id))
     conn.commit()
     conn.close()
 
     flash(f"Aposta registrada. Potencial: R$ {potential:.2f}", "success")
-    return redirect(url_for("dashboard"))
+    return redirect(url_for("historico")) # Redireciona para o histórico para ver o resultado
 
 # ------------------ HISTÓRICO / EXIBIR APOSTAS ------------------
+# Rota /historico (sem alterações, pois o LEFT JOIN já estava correto)
 @app.route("/historico")
 def historico():
     if not session.get("usuario_id"):
         return redirect(url_for("login"))
     uid = session["usuario_id"]
     conn = get_conn()
-    c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    c = conn.cursor() # O cursor RealDictCursor está garantido no get_conn
 
     # pega apostas do usuário
     c.execute("SELECT * FROM bets WHERE usuario_id=%s ORDER BY criado_em DESC", (uid,))
@@ -487,7 +501,7 @@ def historico():
     for b in c.fetchall():
         bdict = row_to_dict(b)
 
-        # pega seleções juntando info do jogo (time_a/time_b/data_hora) — assim os templates conseguem mostrar tudo
+        # pega seleções JUNTANDO info do jogo (time_a/time_b/data_hora)
         c.execute("""
             SELECT bs.*, j.time_a, j.time_b, j.data_hora
             FROM bet_selections bs
@@ -500,32 +514,25 @@ def historico():
         selections = []
         for s in sels_rows:
             sd = row_to_dict(s)
-
-            # compatibilidade: template às vezes espera 'time' (ex.: s.time) e às vezes 'escolha'
-            # sd['escolha'] já vem do banco (coluna escolha). Criamos um alias 'time' com o mesmo valor,
-            # para evitar erros onde o template usa s.time.
+            
+            # Tratamento para compatibilidade com o template
             if "escolha" in sd and sd.get("escolha") is not None:
                 sd["time"] = sd.get("escolha")
             else:
-                # se por acaso o campo escolha estiver vazio (caso de outros fluxos), tentamos montar a string
-                # a partir da escolha A/X/B usando time_a/time_b
                 esc = sd.get("escolha") or sd.get("resultado") or None
-                if esc in ("A", "X", "B"):
-                    if esc == "A":
-                        sd["time"] = sd.get("time_a") or "Time A"
-                    elif esc == "B":
-                        sd["time"] = sd.get("time_b") or "Time B"
-                    else:
-                        sd["time"] = "Empate"
+                if esc == "A":
+                    sd["time"] = sd.get("time_a") or "Time A"
+                elif esc == "B":
+                    sd["time"] = sd.get("time_b") or "Time B"
+                elif esc == "X":
+                    sd["time"] = "Empate"
                 else:
                     sd["time"] = sd.get("time") or sd.get("escolha") or "Indefinido"
 
-            # garante formato para data_hora (se veio como datetime ou string)
             dh = sd.get("data_hora")
             if isinstance(dh, datetime):
                 sd["data_hora"] = dh.isoformat()
-            # se for None mantém None
-
+            
             selections.append(sd)
 
         bdict["selections"] = selections
@@ -534,6 +541,8 @@ def historico():
     conn.close()
     return render_template("bet_history.html", bets=bets)
 
+
+# ... (O resto das suas rotas de Depósito/Saque/Admin/Logout estão OK e não precisam de alteração) ...
 
 # ------------------ DEPÓSITO / SAQUE ------------------
 @app.route("/depositar", methods=["GET", "POST"])
@@ -584,7 +593,6 @@ def sacar():
 
 
 # ------------------ ADMIN GERAL ------------------
-# ------------------ ADMIN GERAL ------------------
 @app.route("/admin_dashboard")
 def admin_dashboard():
     if not session.get("is_admin"):
@@ -616,12 +624,12 @@ def admin_dashboard():
     apostas_pendentes = []
     for b in apostas_pendentes_rows:
         bdict = row_to_dict(b)
-        # Pega seleções da aposta
+        # Pega seleções da aposta JUNTANDO com info do jogo
         c.execute("SELECT bs.*, j.time_a, j.time_b, j.data_hora FROM bet_selections bs LEFT JOIN jogos j ON bs.jogo_id = j.id WHERE bs.bet_id=%s", (b['id'],))
         bdict['selections'] = [row_to_dict(s) for s in c.fetchall()]
         apostas_pendentes.append(bdict)
 
-    # NOVO: Apostas finalizadas (para a segunda tabela)
+    # Apostas finalizadas
     c.execute("""
         SELECT b.*, u.nome as usuario_nome
         FROM bets b
@@ -637,7 +645,7 @@ def admin_dashboard():
         c.execute("SELECT bs.*, j.time_a, j.time_b, j.data_hora FROM bet_selections bs LEFT JOIN jogos j ON bs.jogo_id = j.id WHERE bs.bet_id=%s", (b['id'],))
         bdict['selections'] = [row_to_dict(s) for s in c.fetchall()]
         apostas_finalizadas.append(bdict)
-    
+        
     # Jogos (caso queira mostrar também)
     c.execute("SELECT * FROM jogos ORDER BY data_hora")
     jogos = [row_to_dict(r) for r in c.fetchall()]
@@ -646,8 +654,8 @@ def admin_dashboard():
     return render_template(
         "admin_dashboard.html", 
         transacoes=transacoes, 
-        apostas_pendentes=apostas_pendentes, # Passa a variável correta
-        apostas_finalizadas=apostas_finalizadas, # Passa a variável correta
+        apostas_pendentes=apostas_pendentes, 
+        apostas_finalizadas=apostas_finalizadas, 
         jogos=jogos
     )
 
@@ -806,8 +814,9 @@ def admin_clear_history():
         return redirect(url_for("login"))
     conn = get_conn()
     c = conn.cursor()
-    c.execute("DELETE FROM bets")
+    # Limpa as apostas e as transações, mas não os jogos
     c.execute("DELETE FROM bet_selections")
+    c.execute("DELETE FROM bets")
     c.execute("DELETE FROM transacoes")
     conn.commit()
     conn.close()
@@ -824,24 +833,3 @@ def logout():
 # ------------------ RODAR ------------------
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
