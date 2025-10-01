@@ -1,54 +1,49 @@
 {% extends "base.html" %}
-{% block title %}Minhas Apostas{% endblock %}
-
 {% block conteudo %}
-<h4 class="mb-3">Histórico de Apostas</h4>
+    
+<div class="container py-4">
+    <h2 class="fw-bold text-primary mb-4">📜 Meu Histórico de Apostas</h2>
 
-<div class="card p-3">
-  {% for b in bets %}
-    <div class="mb-3 border-bottom pb-2">
-      <div class="d-flex justify-content-between">
-        <div><strong>ID {{ b.id }}</strong> • <small class="small-muted">{{ b.criado_em }}</small></div>
-        <div><strong>{{ b.status|capitalize }}</strong></div>
-      </div>
-      <div class="small-muted">
-        Stake: R$ {{ '%.2f' % b.stake }} — Odd total: {{ '%.2f' % b.total_odd }} — Potencial: R$ {{ '%.2f' % b.potential }}
-      </div>
+    {% if bets|length == 0 %}
+        <p class="text-center text-muted">Você ainda não fez nenhuma aposta.</p>
+    {% else %}
+        {% for aposta in bets %}
+        <div class="card mb-3 shadow-sm">
+            <div class="card-body">
+                
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <p class="fw-bold mb-0">ID {{ aposta.id }} • {{ aposta.criado_em.split('T')[0] }}</p>
+                    <span class="badge 
+                        {% if aposta.status == 'ganho' %}bg-success
+                        {% elif aposta.status == 'perdido' %}bg-danger
+                        {% else %}bg-secondary{% endif %}">
+                        {{ aposta.status | capitalize }}
+                    </span>
+                </div>
+                
+                <p class="mb-3 small text-muted">
+                    Stake: R$ {{ '%.2f' % aposta.stake }} — Odd total: {{ '%.2f' % aposta.total_odd }} — Potencial: R$ {{ '%.2f' % aposta.potential }}
+                </p>
+                
+                <hr class="my-2">
+                
+                {% for selecao in aposta.selections %}
+                <p class="mb-1 small">
+                    [{{ selecao.tipo | capitalize }}] 
+                    
+                    Escolha: <span class="fw-bold text-dark">{{ selecao.display_escolha }}</span> 
+                    
+                    — Odd: **{{ '%.2f' % selecao.odd }}** • Status: 
+                    <span class="text-primary">{{ selecao.resultado | capitalize }}</span>
+                    
+                    <span class="text-muted fst-italic">({{ selecao.time_a }} vs {{ selecao.time_b }})</span>
+                </p>
+                {% endfor %}
 
-      <ul class="mt-2 list-unstyled">
-        {% for s in b.selections %}
-          <li class="mb-1">
-            
-            {% if s.time_a and s.time_b %}
-              <span class="text-secondary small">{{ s.time_a }} x {{ s.time_b }}</span>
-              {% if s.data_hora %}
-                <span class="text-secondary small">em {{ s.data_hora|truncate(16, true, '') }}</span>
-              {% endif %}
-              <br>
-            {% endif %}
-            
-            {% if s.tipo == 'principal' %}
-              <strong>[Principal]</strong>
-              {% if s.escolha == 'A' %}
-                Escolha: <span class="text-success">Vitória {{ s.time_a }}</span>
-              {% elif s.escolha == 'B' %}
-                Escolha: <span class="text-success">Vitória {{ s.time_b }}</span>
-              {% elif s.escolha == 'X' %}
-                Escolha: <span class="text-info">Empate</span>
-              {% else %}
-                Escolha: {{ s.escolha }}
-              {% endif %}
-            {% else %}
-              <strong>[Extra]</strong> Escolha: {{ s.escolha }}
-            {% endif %}
-            
-            — Odd: **{{ '%.2f' % s.odd }}** • Status: <span class="badge bg-{{ 'success' if s.resultado == 'ganho' else ('danger' if s.resultado == 'perdido' else 'warning') }}">{{ s.resultado|capitalize }}</span>
-          </li>
+            </div>
+        </div>
         {% endfor %}
-      </ul>
-    </div>
-  {% else %}
-    <div class="small-muted">Você ainda não fez apostas.</div>
-  {% endfor %}
+    {% endif %}
+
 </div>
 {% endblock %}
