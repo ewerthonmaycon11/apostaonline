@@ -118,6 +118,22 @@ def init_db():
 
 init_db()
 
+
+# criatable
+
+
+CREATE TABLE apostas (
+    id SERIAL PRIMARY KEY,
+    usuario_id INT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    valor NUMERIC(10,2) NOT NULL,
+    odd_total NUMERIC(10,2) NOT NULL,
+    retorno_potencial NUMERIC(10,2) NOT NULL,
+    selecoes JSONB NOT NULL,
+    data_hora TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+
+
 # ------------------ Utilitários ------------------
 def calc_total_odd(selections):
     total = 1.0
@@ -200,7 +216,9 @@ def dashboard():
         return redirect(url_for("login"))
 
     conn = get_conn()
-    c = conn.cursor()
+    c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+    # pega usuario
     c.execute("SELECT id, nome, email, saldo FROM usuarios WHERE id=%s", (session["usuario_id"],))
     usuario = c.fetchone()
     if usuario is None:
@@ -208,14 +226,28 @@ def dashboard():
         flash("Usuário não encontrado.", "danger")
         return redirect(url_for("logout"))
 
-    # pega jogos ativos + extras contados
+    # pega jogos ativos
     c.execute("SELECT * FROM jogos WHERE ativo=1 ORDER BY data_hora ASC")
     jogos_rows = c.fetchall()
     jogos = []
     for j in jogos_rows:
         jid = j["id"]
+
+        # pega extras
         c.execute("SELECT id, descricao, odd FROM extras WHERE jogo_id=%s", (jid,))
-        extras = [row_to_dict(r) for r in c.fetchall()]
+        extras = c.fetchall()
+
+        # trata data_hora
+        dh = j["data_hora"]
+        if isinstance(dh, str):  # se for string, tenta converter
+            try:
+                dh = datetime.fromisoformat(dh)  # formato 2025-10-01 15:00:00
+            except:
+                try:
+                    dh = datetime.strptime(dh, "%Y-%m-%d %H:%M:%S")
+                except:
+                    dh = None
+
         jogos.append({
             "id": j["id"],
             "time_a": j["time_a"],
@@ -223,13 +255,72 @@ def dashboard():
             "odd_a": j["odd_a"],
             "odd_x": j["odd_x"],
             "odd_b": j["odd_b"],
-            "data_hora": j["data_hora"],
+            "data_hora": dh,
             "extras": extras
         })
     conn.close()
 
-    usuario_dict = row_to_dict(usuario)
-    return render_template("dashboard.html", usuario=usuario_dict, jogos=jogos)
+    return render_template("dashboard.html", usuario=usuario, jogos=jogos)
+
+
+@app.route("/aposta_multipla", methods=["POST"])
+def aposta_multipla():
+    if not session.get("usuario_id"):
+        return jsonify({"ok": False, "erro": "Usuário não logado."})
+
+    data = request.get_json()
+    selecoes = data.get("selecoes", [])
+    valor = float(data.get("valor", 0))
+
+    if not selecoes or valor <= 0:
+        return jsonify({"ok": False, "erro": "Dados inválidos."})
+
+    odd_total = 1.0
+    for s in selecoes:
+        try:
+            odd_total *= float(s["odd"])
+        except:
+            return jsonify({"ok": False, "erro": "Erro nas odds."})
+
+    retorno = round(valor * odd_total, 2)
+
+    conn = get_conn()
+    c = conn.cursor()
+
+    # saldo do usuário
+    c.execute("SELECT saldo FROM usuarios WHERE id=%s", (session["usuario_id"],))
+    user = c.fetchone()
+    if not user:
+        conn.close()
+        return jsonify({"ok": False, "erro": "Usuário não encontrado."})
+
+    if user["saldo"] < valor:
+        conn.close()
+        return jsonify({"ok": False, "erro": "Saldo insuficiente."})
+
+    # desconta saldo
+    novo_saldo = user["saldo"] - valor
+    c.execute("UPDATE usuarios SET saldo=%s WHERE id=%s", (novo_saldo, session["usuario_id"]))
+
+    # salva aposta
+    c.execute("""
+        INSERT INTO apostas (usuario_id, valor, odd_total, retorno_potencial, selecoes, data_hora)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        RETURNING id
+    """, (
+        session["usuario_id"],
+        valor,
+        odd_total,
+        retorno,
+        str(selecoes),  # simples, mas dá pra usar JSONField se quiser
+        datetime.now()
+    ))
+    aposta_id = c.fetchone()["id"]
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({"ok": True, "retorno": retorno, "aposta_id": aposta_id})
 
 @app.route("/jogo/<int:jogo_id>")
 def ver_jogo(jogo_id):
@@ -639,4 +730,5 @@ def logout():
 # ------------------ RODAR ------------------
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
 
