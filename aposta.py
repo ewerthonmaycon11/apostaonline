@@ -510,56 +510,49 @@ def apostar():
 # ------------------ HISTÓRICO / EXIBIR APOSTAS ------------------
 @app.route("/historico")
 def historico():
-    if not session.get("usuario_id"):
-        flash("Você precisa estar logado para ver o histórico.", "warning")
+    if "usuario_id" not in session:
         return redirect(url_for("login"))
 
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    usuario_id = session["usuario_id"]
 
-    # --- pega as apostas do usuário (usa sua tabela 'bets') ---
-    cur.execute("""
-        SELECT id, stake, total_odd, potential, status, criado_em
-        FROM bets
+    # Busca todas as apostas do usuário
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    cursor.execute("""
+        SELECT *
+        FROM apostas
         WHERE usuario_id = %s
-        ORDER BY criado_em DESC
-    """, (session["usuario_id"],))
-    apostas_rows = cur.fetchall()
-    apostas = [dict(a) for a in apostas_rows]  # converte para dicts mutáveis
+        ORDER BY data DESC
+    """, (usuario_id,))
+    apostas = cursor.fetchall()
 
-    # formata criado_em (você salva ISO via datetime.now().isoformat())
-    for a in apostas:
-        ce = a.get("criado_em")
-        if ce:
-            try:
-                a["criado_em_fmt"] = datetime.fromisoformat(ce).strftime("%Y-%m-%d %H:%M")
-            except Exception:
-                a["criado_em_fmt"] = ce
-        else:
-            a["criado_em_fmt"] = ""
-
-    # --- pega os detalhes das seleções (usa 'bet_selections' + jogos.time_a/time_b) ---
-    cur.execute("""
-        SELECT bs.bet_id, j.time_a, j.time_b, bs.escolha, bs.odd, bs.resultado
-        FROM bet_selections bs
-        LEFT JOIN jogos j ON j.id = bs.jogo_id
-        WHERE bs.bet_id IN (
-            SELECT id FROM bets WHERE usuario_id = %s
-        )
-        ORDER BY bs.id
-    """, (session["usuario_id"],))
-    detalhes_rows = cur.fetchall()
-
+    # Busca os detalhes de cada aposta
     detalhes_por_aposta = {}
-    for d in detalhes_rows:
-        d = dict(d)
-        bid = d["bet_id"]
-        detalhes_por_aposta.setdefault(bid, []).append(d)
+    for aposta in apostas:
+        cursor.execute("""
+            SELECT time_a, time_b, escolha, odd, resultado
+            FROM detalhes
+            WHERE aposta_id = %s
+        """, (aposta["id"],))
+        detalhes = cursor.fetchall()
 
-    cur.close()
-    conn.close()
+        # Converte cada detalhe em dict para o template
+        detalhes_por_aposta[aposta["id"]] = [
+            {
+                "time_a": det["time_a"],
+                "time_b": det["time_b"],
+                "escolha": det["escolha"],
+                "odd": det["odd"],
+                "resultado": det["resultado"]
+            } for det in detalhes
+        ]
 
-    return render_template("bet_history.html", apostas=apostas, detalhes_por_aposta=detalhes_por_aposta)
+    cursor.close()
+
+    return render_template(
+        "historico.html",
+        apostas=apostas,
+        detalhes_por_aposta=detalhes_por_aposta
+    )
 
 
 # ... (O resto das suas rotas de Depósito/Saque/Admin/Logout estão OK e não precisam de alteração) ...
@@ -894,6 +887,7 @@ def logout():
 # ------------------ RODAR ------------------
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
 
 
 
