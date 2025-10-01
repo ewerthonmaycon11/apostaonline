@@ -17,7 +17,18 @@
 
       <ul class="mt-2">
         {% for s in b.selections %}
-          <li>{{ s.tipo }} • {{ s.time }} — Odd: {{ '%.2f' % s.odd }} • Resultado: {{ s.resultado }}</li>
+          <li>
+            {{ s.tipo|capitalize }} • 
+            {% if s.tipo == 'principal' %}
+              Escolha: {{ s.escolha }}
+            {% else %}
+              Extra: {{ s.escolha }}
+            {% endif %}
+            — Odd: {{ '%.2f' % s.odd }} • Resultado: {{ s.resultado }} 
+            {% if s.time_a and s.time_b %}
+              • {{ s.time_a }} x {{ s.time_b }} em {{ s.data_hora }}
+            {% endif %}
+          </li>
         {% endfor %}
       </ul>
     </div>
