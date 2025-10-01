@@ -501,73 +501,74 @@ def apostar():
 
 # ------------------ HISTÓRICO / EXIBIR APOSTAS ------------------
 # ------------------ HISTÓRICO / EXIBIR APOSTAS ------------------
+# ------------------ HISTÓRICO / EXIBIR APOSTAS ------------------
 @app.route("/historico")
 def historico():
-    if not session.get("usuario_id"):
-        return redirect(url_for("login"))
-    uid = session["usuario_id"]
-    conn = get_conn()
-    c = conn.cursor() # O cursor RealDictCursor está garantido no get_conn
+    if not session.get("usuario_id"):
+        return redirect(url_for("login"))
+    uid = session["usuario_id"]
+    conn = get_conn()
+    c = conn.cursor() # O cursor RealDictCursor está garantido no get_conn
 
-    # pega apostas do usuário
-    c.execute("SELECT * FROM bets WHERE usuario_id=%s ORDER BY criado_em DESC", (uid,))
-    bets = []
-    for b in c.fetchall():
-        bdict = row_to_dict(b)
+    # pega apostas do usuário
+    c.execute("SELECT * FROM bets WHERE usuario_id=%s ORDER BY criado_em DESC", (uid,))
+    bets = []
+    for b in c.fetchall():
+        bdict = row_to_dict(b)
 
-        # pega seleções JUNTANDO info do jogo (time_a/time_b/data_hora)
-        c.execute("""
-            SELECT bs.*, j.time_a, j.time_b, j.data_hora
-            FROM bet_selections bs
-            LEFT JOIN jogos j ON bs.jogo_id = j.id
-            WHERE bs.bet_id = %s
-            ORDER BY bs.id
-        """, (b["id"],))
-        sels_rows = c.fetchall()
+        # pega seleções JUNTANDO info do jogo (time_a/time_b/data_hora)
+        c.execute("""
+            SELECT bs.*, j.time_a, j.time_b, j.data_hora
+            FROM bet_selections bs
+            LEFT JOIN jogos j ON bs.jogo_id = j.id
+            WHERE bs.bet_id = %s
+            ORDER BY bs.id
+        """, (b["id"],))
+        sels_rows = c.fetchall()
 
-        selections = []
-        for s in sels_rows:
-            sd = row_to_dict(s)
-            
-            # 💡 CORREÇÃO PRINCIPAL: Formata a escolha para exibição
-            choice_value = sd.get("escolha")
-            display_choice = choice_value
+        selections = []
+        for s in sels_rows:
+            sd = row_to_dict(s)
+            
+            # 💡 CORREÇÃO PRINCIPAL: Formata a escolha para exibição
+            choice_value = sd.get("escolha")
+            display_choice = choice_value
 
-            # Se for uma aposta principal (que pode ter 'A', 'X', 'B' como valor de escolha)
-            if sd.get("tipo") == "principal":
-                if choice_value == sd.get("time_a"):
-                    # Já está com o nome do time
-                    pass 
-                elif choice_value == sd.get("time_b"):
-                    # Já está com o nome do time
-                    pass
-                elif choice_value == "Empate":
-                    # Já está com o nome "Empate"
-                    pass
-                else:
-                    # Tratamento de compatibilidade antiga (se a escolha for só a letra)
-                    if choice_value == "A":
-                        display_choice = sd.get("time_a")
-                    elif choice_value == "B":
-                        display_choice = sd.get("time_b")
-                    elif choice_value == "X":
-                        display_choice = "Empate"
-            
-            # Define o campo final para o template
-            sd["display_escolha"] = display_choice or "Indefinido"
+            # Se for uma aposta principal (que pode ter 'A', 'X', 'B' como valor de escolha)
+            if sd.get("tipo") == "principal":
+                if choice_value == sd.get("time_a"):
+                    # Já está com o nome do time
+                    pass 
+                elif choice_value == sd.get("time_b"):
+                    # Já está com o nome do time
+                    pass
+                elif choice_value == "Empate":
+                    # Já está com o nome "Empate"
+                    pass
+                else:
+                    # Tratamento de compatibilidade antiga (se a escolha for só a letra)
+                    if choice_value == "A":
+                        display_choice = sd.get("time_a")
+                    elif choice_value == "B":
+                        display_choice = sd.get("time_b")
+                    elif choice_value == "X":
+                        display_choice = "Empate"
+            
+            # Define o campo final para o template
+            sd["display_escolha"] = display_choice or "Indefinido"
 
-            # O restante do seu tratamento (data/hora)
-            dh = sd.get("data_hora")
-            if isinstance(dh, datetime):
-                sd["data_hora"] = dh.isoformat()
-               
-            selections.append(sd)
+            # O restante do seu tratamento (data/hora)
+            dh = sd.get("data_hora")
+            if isinstance(dh, datetime):
+                sd["data_hora"] = dh.isoformat()
+                
+            selections.append(sd)
 
-        bdict["selections"] = selections
-        bets.append(bdict)
+        bdict["selections"] = selections
+        bets.append(bdict)
 
-    conn.close()
-    return render_template("bet_history.html", bets=bets)
+    conn.close()
+    return render_template("bet_history.html", bets=bets)
 
 
 # ... (O resto das suas rotas de Depósito/Saque/Admin/Logout estão OK e não precisam de alteração) ...
@@ -902,6 +903,7 @@ def logout():
 # ------------------ RODAR ------------------
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
 
 
 
