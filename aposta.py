@@ -255,6 +255,11 @@ def dashboard():
 # ------------------ APOSTA MÚLTIPLA (AJAX) ------------------
 @app.route("/aposta_multipla", methods=["POST"])
 def aposta_multipla():
+    # ... (imports, get_conn, calc_total_odd, etc., assumidos)
+    from flask import session, request, jsonify # Assumindo esses imports
+    from datetime import datetime
+    # Assumindo que 'calc_total_odd' e 'calc_potential' estão definidos
+
     if not session.get("usuario_id"):
         return jsonify({"ok": False, "erro": "Usuário não logado."})
 
@@ -268,18 +273,24 @@ def aposta_multipla():
     if not selecoes or valor <= 0:
         return jsonify({"ok": False, "erro": "Dados inválidos."})
 
-    # calcula odd total e retorno potencial
+    # Calcula odd total e retorno potencial
     try:
-        odd_list = [float(s.get("odd", 0)) for s in selecoes]
+        # Acessa s["odd"], que será garantido pelo frontend corrigido
+        odd_list = [float(s["odd"]) for s in selecoes if "odd" in s]
+        
+        if not odd_list:
+            return jsonify({"ok": False, "erro": "Nenhuma odd válida encontrada."})
+
         odd_total = calc_total_odd(odd_list)
         retorno = calc_potential(valor, odd_total)
     except Exception as e:
+        # Erro ao calcular odds, possivelmente dados mal formatados
         return jsonify({"ok": False, "erro": f"Erro ao calcular odds: {e}"})
 
     conn = get_conn()
     c = conn.cursor()
 
-    # pega saldo do usuário
+    # Pega saldo do usuário
     c.execute("SELECT saldo FROM usuarios WHERE id=%s", (session["usuario_id"],))
     user = c.fetchone()
     if not user:
@@ -290,7 +301,7 @@ def aposta_multipla():
         conn.close()
         return jsonify({"ok": False, "erro": "Saldo insuficiente."})
 
-    # salva na tabela bets
+    # Salva na tabela bets
     now = datetime.now().isoformat()
     c.execute(
         "INSERT INTO bets (usuario_id, stake, total_odd, potential, status, criado_em) "
@@ -306,16 +317,16 @@ def aposta_multipla():
     bet_id = bet_row["id"]
     final_selecoes = [] # Lista final para retorno JSON
 
-    # salva seleções em bet_selections
+    # Salva seleções em bet_selections
     for s in selecoes:
         try:
-            jogo_id = int(s.get("jogo_id")) # ⚠️ CRUCIAL: Garante que é um inteiro
+            # AGORA funciona, pois o frontend envia 'jogo_id'
+            jogo_id = int(s.get("jogo_id")) 
         except (TypeError, ValueError):
             # Se não conseguir o ID do jogo, a seleção não será salva
             continue
-        
-        # Pega info do jogo para salvar no retorno e garantir o link (embora não seja mais necessário
-        # salvar time_a/b no bet_selections, mantemos a consulta para o retorno JSON)
+            
+        # Pega info do jogo
         c.execute("SELECT time_a, time_b, data_hora FROM jogos WHERE id=%s", (jogo_id,))
         jogo_info = c.fetchone()
         
@@ -327,7 +338,8 @@ def aposta_multipla():
         time_b = jogo_info["time_b"]
         data_hora = jogo_info["data_hora"]
 
-        escolha = s.get("escolha", "Indefinido")
+        # AGORA funciona, pois o frontend envia 'escolha'
+        escolha = s.get("escolha", "Indefinido") 
         tipo = s.get("tipo", "Indefinido")
         odd = float(s.get("odd", 0))
         
@@ -344,7 +356,7 @@ def aposta_multipla():
         s["data_hora"] = data_hora
         final_selecoes.append(s)
 
-    # só agora desconta o saldo
+    # Desconta o saldo
     novo_saldo = user["saldo"] - valor
     c.execute("UPDATE usuarios SET saldo=%s WHERE id=%s", (novo_saldo, session["usuario_id"]))
 
@@ -835,4 +847,5 @@ def logout():
 # ------------------ RODAR ------------------
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
 
