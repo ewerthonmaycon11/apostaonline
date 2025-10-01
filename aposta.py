@@ -13,7 +13,7 @@ app.secret_key = "supersegredo123"
 # ------------------ Config Banco ------------------
 DB_URL = os.getenv("DATABASE_URL", "postgresql://apostaonline_user:rM2mWO5FaaCmMgXEmp2pharDko1Cc1SE@dpg-d3e71fh5pdvs738qrmn0-a.oregon-postgres.render.com/apostaonline")
 
-conn = psycopg2.connect(os.getenv("DATABASE_URL"))  # string de conexão da web
+conn = psycopg2.connect(os.getenv("postgresql://apostaonline_user:rM2mWO5FaaCmMgXEmp2pharDko1Cc1SE@dpg-d3e71fh5pdvs738qrmn0-a.oregon-postgres.render.com/apostaonline"))  # string de conexão da web
 cur = conn.cursor()
 
 
@@ -753,6 +753,7 @@ def logout():
 # ------------------ RODAR ------------------
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
 
 
 
