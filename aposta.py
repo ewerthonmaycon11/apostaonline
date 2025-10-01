@@ -13,6 +13,32 @@ app.secret_key = "supersegredo123"
 # ------------------ Config Banco ------------------
 DB_URL = os.getenv("DATABASE_URL", "postgresql://apostaonline_user:rM2mWO5FaaCmMgXEmp2pharDko1Cc1SE@dpg-d3e71fh5pdvs738qrmn0-a.oregon-postgres.render.com/apostaonline")
 
+
+
+
+
+conn = psycopg2.connect(os.getenv("DATABASE_URL"))  # string de conexão da web
+cur = conn.cursor()
+
+cur.execute("""
+CREATE TABLE IF NOT EXISTS apostas (
+    id SERIAL PRIMARY KEY,
+    usuario_id INT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    valor NUMERIC(10,2) NOT NULL,
+    odd_total NUMERIC(10,2) NOT NULL,
+    retorno_potencial NUMERIC(10,2) NOT NULL,
+    selecoes JSONB NOT NULL,
+    data_hora TIMESTAMP NOT NULL DEFAULT NOW()
+);
+""")
+
+conn.commit()
+cur.close()
+conn.close()
+
+
+
+
 # ------------------ Helpers DB ------------------
 def get_conn():
     return psycopg2.connect(DB_URL, cursor_factory=psycopg2.extras.RealDictCursor)
@@ -119,18 +145,6 @@ def init_db():
 init_db()
 
 
-# criatable
-
-
-CREATE TABLE apostas (
-    id SERIAL PRIMARY KEY,
-    usuario_id INT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
-    valor NUMERIC(10,2) NOT NULL,
-    odd_total NUMERIC(10,2) NOT NULL,
-    retorno_potencial NUMERIC(10,2) NOT NULL,
-    selecoes JSONB NOT NULL,
-    data_hora TIMESTAMP NOT NULL DEFAULT NOW()
-);
 
 
 
@@ -730,5 +744,6 @@ def logout():
 # ------------------ RODAR ------------------
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
 
 
