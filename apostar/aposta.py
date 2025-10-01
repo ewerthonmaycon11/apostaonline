@@ -11,7 +11,7 @@ app = Flask(__name__)
 app.secret_key = "supersegredo123"
 
 # ------------------ Config Banco ------------------
-DB_URL = os.getenv("DATABASE_URL", "postgresql://apostaonline_user:rM2mWO5FaaCmMgXEmp2pharDko1Cc1SE@dpg-d3e71fh5pdvs738qrmn0-a.oregon-postgres.render.com/apostaonline")
+DB_URL = os.getenv("DATABASE_URL", "postgresql://apostaonline_user:rM2mWO5FaaCmMgXEmp2pharDko1Cc1SE@dpg-d3e71fh5pdvs738qrmn0-a/apostaonline")
 
 # ------------------ Helpers DB ------------------
 def get_conn():
@@ -603,3 +603,4 @@ def logout():
 # ------------------ RODAR ------------------
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
