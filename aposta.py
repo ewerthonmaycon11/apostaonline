@@ -477,29 +477,59 @@ def apostar():
 def historico():
     if not session.get("usuario_id"):
         return redirect(url_for("login"))
-    
     uid = session["usuario_id"]
     conn = get_conn()
     c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-    # Pega todas as apostas do usuário
+    # pega apostas do usuário
     c.execute("SELECT * FROM bets WHERE usuario_id=%s ORDER BY criado_em DESC", (uid,))
-    bets_rows = c.fetchall()
     bets = []
+    for b in c.fetchall():
+        bdict = row_to_dict(b)
 
-    for b in bets_rows:
-        bet = dict(b)
-
-        # Pega seleções da aposta
+        # pega seleções juntando info do jogo (time_a/time_b/data_hora) — assim os templates conseguem mostrar tudo
         c.execute("""
-            SELECT bs.*, j.time_a, j.time_b, j.data_hora 
-            FROM bet_selections bs 
-            LEFT JOIN jogos j ON bs.jogo_id = j.id 
-            WHERE bs.bet_id=%s
+            SELECT bs.*, j.time_a, j.time_b, j.data_hora
+            FROM bet_selections bs
+            LEFT JOIN jogos j ON bs.jogo_id = j.id
+            WHERE bs.bet_id = %s
+            ORDER BY bs.id
         """, (b["id"],))
-        selections = [dict(s) for s in c.fetchall()]
-        bet["selections"] = selections
-        bets.append(bet)
+        sels_rows = c.fetchall()
+
+        selections = []
+        for s in sels_rows:
+            sd = row_to_dict(s)
+
+            # compatibilidade: template às vezes espera 'time' (ex.: s.time) e às vezes 'escolha'
+            # sd['escolha'] já vem do banco (coluna escolha). Criamos um alias 'time' com o mesmo valor,
+            # para evitar erros onde o template usa s.time.
+            if "escolha" in sd and sd.get("escolha") is not None:
+                sd["time"] = sd.get("escolha")
+            else:
+                # se por acaso o campo escolha estiver vazio (caso de outros fluxos), tentamos montar a string
+                # a partir da escolha A/X/B usando time_a/time_b
+                esc = sd.get("escolha") or sd.get("resultado") or None
+                if esc in ("A", "X", "B"):
+                    if esc == "A":
+                        sd["time"] = sd.get("time_a") or "Time A"
+                    elif esc == "B":
+                        sd["time"] = sd.get("time_b") or "Time B"
+                    else:
+                        sd["time"] = "Empate"
+                else:
+                    sd["time"] = sd.get("time") or sd.get("escolha") or "Indefinido"
+
+            # garante formato para data_hora (se veio como datetime ou string)
+            dh = sd.get("data_hora")
+            if isinstance(dh, datetime):
+                sd["data_hora"] = dh.isoformat()
+            # se for None mantém None
+
+            selections.append(sd)
+
+        bdict["selections"] = selections
+        bets.append(bdict)
 
     conn.close()
     return render_template("bet_history.html", bets=bets)
@@ -794,6 +824,7 @@ def logout():
 # ------------------ RODAR ------------------
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
 
 
 
