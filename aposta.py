@@ -452,18 +452,33 @@ def apostar():
 def historico():
     if not session.get("usuario_id"):
         return redirect(url_for("login"))
+    
     uid = session["usuario_id"]
     conn = get_conn()
-    c = conn.cursor()
+    c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+    # Pega todas as apostas do usuário
     c.execute("SELECT * FROM bets WHERE usuario_id=%s ORDER BY criado_em DESC", (uid,))
+    bets_rows = c.fetchall()
     bets = []
-    for b in c.fetchall():
-        bdict = row_to_dict(b)
-        c.execute("SELECT * FROM bet_selections WHERE bet_id=%s", (b["id"],))
-        bdict["selections"] = [row_to_dict(s) for s in c.fetchall()]
-        bets.append(bdict)
+
+    for b in bets_rows:
+        bet = dict(b)
+
+        # Pega seleções da aposta
+        c.execute("""
+            SELECT bs.*, j.time_a, j.time_b, j.data_hora 
+            FROM bet_selections bs 
+            LEFT JOIN jogos j ON bs.jogo_id = j.id 
+            WHERE bs.bet_id=%s
+        """, (b["id"],))
+        selections = [dict(s) for s in c.fetchall()]
+        bet["selections"] = selections
+        bets.append(bet)
+
     conn.close()
     return render_template("bet_history.html", bets=bets)
+
 
 # ------------------ DEPÓSITO / SAQUE ------------------
 @app.route("/depositar", methods=["GET", "POST"])
@@ -754,6 +769,7 @@ def logout():
 # ------------------ RODAR ------------------
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
 
 
 
