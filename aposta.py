@@ -163,18 +163,20 @@ def login():
         cur.close()
         conn.close()
 
-        if usuario and usuario["senha"] == senha:  # aqui você pode usar hash se já tiver
-            session.permanent = True  # mantém a sessão viva pelo tempo definido acima
-            session["user_id"] = usuario["id"]  # salva o id do usuário
-            session["user_nome"] = usuario["nome"]  # opcional, se quiser mostrar na navbar
+        if usuario and usuario["senha"] == senha:  # ideal: usar hash
+            session.permanent = True
+            session["usuario_id"] = usuario["id"]
+            session["usuario_nome"] = usuario["nome"]
+            session["is_admin"] = usuario["is_admin"]
 
             flash("Login realizado com sucesso!", "success")
-            return redirect(url_for("index"))  # vai pra home ou dashboard
+            return redirect(url_for("dashboard"))
 
         else:
             flash("Credenciais inválidas. Tente novamente.", "danger")
 
     return render_template("login.html")
+
 
 
 @app.route("/registrar", methods=["GET", "POST"])
@@ -892,6 +894,7 @@ def logout():
 # ------------------ RODAR ------------------
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
 
 
 
