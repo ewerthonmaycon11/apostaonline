@@ -142,6 +142,31 @@ def calc_potential(stake, total_odd):
     return round(stake * total_odd, 2)
 
 # ------------------ ROTAS ------------------
+@app.route("/update_schema")
+def update_schema():
+    conn = get_conn()
+    c = conn.cursor()
+    try:
+        c.execute("""
+            ALTER TABLE bet_selections
+            ADD COLUMN IF NOT EXISTS time_a TEXT,
+            ADD COLUMN IF NOT EXISTS time_b TEXT,
+            ADD COLUMN IF NOT EXISTS data_hora TEXT
+        """)
+        conn.commit()
+        msg = "✅ Colunas adicionadas com sucesso na tabela bet_selections!"
+    except Exception as e:
+        conn.rollback()
+        msg = f"❌ Erro ao alterar tabela: {e}"
+    finally:
+        conn.close()
+    return msg
+
+
+
+
+
+
 @app.route("/")
 def index():
     if session.get("usuario_id"):
@@ -769,6 +794,7 @@ def logout():
 # ------------------ RODAR ------------------
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
 
 
 
