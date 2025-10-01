@@ -15,36 +15,34 @@
         Stake: R$ {{ '%.2f' % b.stake }} — Odd total: {{ '%.2f' % b.total_odd }} — Potencial: R$ {{ '%.2f' % b.potential }}
       </div>
 
-      <ul class="mt-2">
+      <ul class="mt-2 list-unstyled">
         {% for s in b.selections %}
-          <li>
-            {% if s.tipo == 'principal' %}
-              <strong>Principal</strong> •
-              {% if s.escolha == 'A' %}
-                Escolha: A — Vitória {{ s.time_a }}
-              {% elif s.escolha == 'B' %}
-                Escolha: B — Vitória {{ s.time_b }}
-              {% elif s.escolha == 'X' %}
-                Escolha: X — Empate
-              {% else %}
-                Escolha: {{ s.time }}
+          <li class="mb-1">
+            
+            {% if s.time_a and s.time_b %}
+              <span class="text-secondary small">{{ s.time_a }} x {{ s.time_b }}</span>
+              {% if s.data_hora %}
+                <span class="text-secondary small">em {{ s.data_hora|truncate(16, true, '') }}</span>
               {% endif %}
-              — Odd: {{ '%.2f' % s.odd }} • Resultado: {{ s.resultado }}
-              {% if s.time_a or s.time_b %}
-                • {{ s.time_a }} x {{ s.time_b }}
-                {% if s.data_hora %}
-                  em {{ s.data_hora }}
-                {% endif %}
+              <br>
+            {% endif %}
+            
+            {% if s.tipo == 'principal' %}
+              <strong>[Principal]</strong>
+              {% if s.escolha == 'A' %}
+                Escolha: <span class="text-success">Vitória {{ s.time_a }}</span>
+              {% elif s.escolha == 'B' %}
+                Escolha: <span class="text-success">Vitória {{ s.time_b }}</span>
+              {% elif s.escolha == 'X' %}
+                Escolha: <span class="text-info">Empate</span>
+              {% else %}
+                Escolha: {{ s.escolha }}
               {% endif %}
             {% else %}
-              <strong>Extra</strong> • {{ s.escolha }} — Odd: {{ '%.2f' % s.odd }} • Resultado: {{ s.resultado }}
-              {% if s.time_a or s.time_b %}
-                • {{ s.time_a }} x {{ s.time_b }}
-                {% if s.data_hora %}
-                  em {{ s.data_hora }}
-                {% endif %}
-              {% endif %}
+              <strong>[Extra]</strong> Escolha: {{ s.escolha }}
             {% endif %}
+            
+            — Odd: **{{ '%.2f' % s.odd }}** • Status: <span class="badge bg-{{ 'success' if s.resultado == 'ganho' else ('danger' if s.resultado == 'perdido' else 'warning') }}">{{ s.resultado|capitalize }}</span>
           </li>
         {% endfor %}
       </ul>
