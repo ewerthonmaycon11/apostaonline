@@ -290,10 +290,6 @@ def aposta_multipla():
         conn.close()
         return jsonify({"ok": False, "erro": "Saldo insuficiente."})
 
-    # desconta saldo
-    novo_saldo = user["saldo"] - valor
-    c.execute("UPDATE usuarios SET saldo=%s WHERE id=%s", (novo_saldo, session["usuario_id"]))
-
     # salva na tabela bets
     now = datetime.now().isoformat()
     c.execute(
@@ -309,31 +305,26 @@ def aposta_multipla():
 
     bet_id = bet_row["id"]
 
-    # salva seleções em bet_selections com info do jogo
+    # salva seleções em bet_selections
     for s in selecoes:
-        jogo_id = s.get("jogo")
+        jogo_id = s.get("jogo_id")  # ✅ pegar o correto
         if not jogo_id:
             continue
 
         c.execute("SELECT time_a, time_b, data_hora FROM jogos WHERE id=%s", (jogo_id,))
         jogo_info = c.fetchone()
-
         time_a = jogo_info["time_a"] if jogo_info else "Indefinido"
         time_b = jogo_info["time_b"] if jogo_info else "Indefinido"
         data_hora = jogo_info["data_hora"] if jogo_info else None
 
-        # Salva seleção (principal ou extra)
+        escolha = s.get("escolha", "Indefinido")  # ✅ pegar escolha correta
+        tipo = s.get("tipo", "Indefinido")
+        odd = float(s.get("odd", 0))
+
         c.execute(
             "INSERT INTO bet_selections (bet_id, jogo_id, tipo, escolha, odd, resultado) "
             "VALUES (%s, %s, %s, %s, %s, %s)",
-            (
-                bet_id,
-                jogo_id,
-                s.get("tipo", "Indefinido"),
-                s.get("time", "Indefinido"),  # <--- Correção aqui
-                float(s.get("odd", 0)),
-                "pendente"
-            )
+            (bet_id, jogo_id, tipo, escolha, odd, "pendente")
         )
 
         # adiciona info do jogo pro retorno JSON
@@ -341,10 +332,15 @@ def aposta_multipla():
         s["time_b"] = time_b
         s["data_hora"] = data_hora
 
+    # só agora desconta o saldo
+    novo_saldo = user["saldo"] - valor
+    c.execute("UPDATE usuarios SET saldo=%s WHERE id=%s", (novo_saldo, session["usuario_id"]))
+
     conn.commit()
     conn.close()
 
     return jsonify({"ok": True, "retorno": retorno, "bet_id": bet_id, "selecoes": selecoes})
+
 
 
 
@@ -758,6 +754,7 @@ def logout():
 # ------------------ RODAR ------------------
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
 
 
 
