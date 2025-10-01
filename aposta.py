@@ -1,5 +1,4 @@
 
-# app.py
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 import psycopg2, psycopg2.extras
 from datetime import datetime
@@ -132,11 +131,6 @@ def init_db():
 # Inicializa DB
 init_db()
 
-
-
-
-
-
 # ------------------ Utilitários ------------------
 def calc_total_odd(selections):
     total = 1.0
@@ -146,14 +140,6 @@ def calc_total_odd(selections):
 
 def calc_potential(stake, total_odd):
     return round(stake * total_odd, 2)
-
-
-
-
-
-
-
-
 
 # ------------------ ROTAS ------------------
 @app.route("/")
@@ -213,14 +199,7 @@ def registrar():
             conn.close()
     return render_template("register.html")
 
-
-# ------------------ Outras rotas ------------------
-
-  # nome do template pode ser register.html também; ajuste conforme seu projeto
-
-# ------------------ DASHBOARD / JOGOS / VER JOGO ------------------
-
-# ------------------ DASHBOARD / JOGOS / VER JOGO ------------------
+# ------------------ DASHBOARD ------------------
 @app.route("/dashboard")
 def dashboard():
     if not session.get("usuario_id"):
@@ -250,9 +229,9 @@ def dashboard():
 
         # trata data_hora
         dh = j["data_hora"]
-        if isinstance(dh, str):  # se for string, tenta converter
+        if isinstance(dh, str):
             try:
-                dh = datetime.fromisoformat(dh)  # formato 2025-10-01 15:00:00
+                dh = datetime.fromisoformat(dh)
             except:
                 try:
                     dh = datetime.strptime(dh, "%Y-%m-%d %H:%M:%S")
@@ -273,7 +252,7 @@ def dashboard():
 
     return render_template("dashboard.html", usuario=usuario, jogos=jogos)
 
-
+# ------------------ APOSTA MÚLTIPLA ------------------
 @app.route("/aposta_multipla", methods=["POST"])
 def aposta_multipla():
     if not session.get("usuario_id"):
@@ -286,16 +265,15 @@ def aposta_multipla():
     if not selecoes or valor <= 0:
         return jsonify({"ok": False, "erro": "Dados inválidos."})
 
-    # calcula odd total e retorno potencial
     try:
-        odd_list = [float(s["odd"]) for s in selecoes]
+        odd_list = [float(s.get("odd", 1)) for s in selecoes]
         odd_total = calc_total_odd(odd_list)
         retorno = calc_potential(valor, odd_total)
     except Exception as e:
         return jsonify({"ok": False, "erro": f"Erro ao calcular odds: {e}"})
 
     conn = get_conn()
-    c = conn.cursor()
+    c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     # pega saldo do usuário
     c.execute("SELECT saldo FROM usuarios WHERE id=%s", (session["usuario_id"],))
@@ -319,7 +297,12 @@ def aposta_multipla():
         "VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
         (session["usuario_id"], valor, odd_total, retorno, "pendente", now)
     )
-    bet_id = c.fetchone()[0]
+    bet_id_row = c.fetchone()
+    if bet_id_row is None:
+        conn.rollback()
+        conn.close()
+        return jsonify({"ok": False, "erro": "Erro ao registrar aposta."})
+    bet_id = bet_id_row["id"]
 
     # salva seleções em bet_selections
     for s in selecoes:
@@ -331,7 +314,7 @@ def aposta_multipla():
                 s.get("jogo_id"),
                 s.get("tipo"),
                 s.get("escolha"),
-                float(s.get("odd")),
+                float(s.get("odd", 1)),
                 "pendente"
             )
         )
@@ -749,6 +732,7 @@ def logout():
 # ------------------ RODAR ------------------
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
 
 
 
