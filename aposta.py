@@ -3,24 +3,16 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 import psycopg2, psycopg2.extras
 from datetime import datetime
-import json
 import os
-import math
 
 app = Flask(__name__)
 app.secret_key = "supersegredo123"
 
 # ------------------ Config Banco ------------------
-DB_URL = os.getenv("DATABASE_URL", "postgresql://apostaonline_user:rM2mWO5FaaCmMgXEmp2pharDko1Cc1SE@dpg-d3e71fh5pdvs738qrmn0-a.oregon-postgres.render.com/apostaonline")
-
-conn = psycopg2.connect(os.getenv("postgresql://apostaonline_user:rM2mWO5FaaCmMgXEmp2pharDko1Cc1SE@dpg-d3e71fh5pdvs738qrmn0-a.oregon-postgres.render.com/apostaonline"))  # string de conexão da web
-cur = conn.cursor()
-
-
-
-
-
-
+DB_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://apostaonline_user:rM2mWO5FaaCmMgXEmp2pharDko1Cc1SE@dpg-d3e71fh5pdvs738qrmn0-a.oregon-postgres.render.com/apostaonline"
+)
 
 # ------------------ Helpers DB ------------------
 def get_conn():
@@ -112,9 +104,8 @@ def init_db():
     );
     ''')
 
-
-    # criando a tabela, alinhamento correto
-    cur.execute("""
+    # Tabela apostas multipla
+    c.execute('''
     CREATE TABLE IF NOT EXISTS apostas (
         id SERIAL PRIMARY KEY,
         usuario_id INT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
@@ -124,13 +115,7 @@ def init_db():
         selecoes JSONB NOT NULL,
         data_hora TIMESTAMP NOT NULL DEFAULT NOW()
     );
-    """)
-    conn.commit()
-    cur.close()
-
-        
-
-    conn.commit()
+    ''')
 
     # Admin padrão
     c.execute("SELECT id FROM usuarios WHERE is_admin=1 LIMIT 1")
@@ -139,11 +124,13 @@ def init_db():
             "INSERT INTO usuarios (nome, email, senha, saldo, is_admin, criado_em) VALUES (%s,%s,%s,%s,%s,%s)",
             ("admin", "admin", "1234", 0.0, 1, datetime.now().isoformat())
         )
-        conn.commit()
 
+    conn.commit()
     conn.close()
 
+# Inicializa DB
 init_db()
+
 
 
 
@@ -753,6 +740,7 @@ def logout():
 # ------------------ RODAR ------------------
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
 
 
 
