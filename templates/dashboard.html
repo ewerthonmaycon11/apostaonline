@@ -8,7 +8,7 @@
     <h3 class="fw-bold text-primary">🎯 Bem-vindo, {{ usuario.nome }}</h3>
     <div class="p-3 bg-light rounded shadow-sm">
       <span class="fw-semibold">💰 Saldo:</span> 
-      <span class="text-success fw-bold">R$ {{ "%.2f"|format(usuario.saldo) }}</span>
+      <span class="text-success fw-bold">R$ {{ "%.2f"|format(usuario.saldo or 0) }}</span>
     </div>
   </div>
 
@@ -21,7 +21,7 @@
           <div class="card shadow border-0 h-100">
             <div class="card-body">
               <h5 class="card-title text-center text-dark fw-bold mb-3">
-                ⚽ {{ jogo.time_a }} <span class="text-muted">vs</span> {{ jogo.time_b }}
+                ⚽ {{ jogo.time_a or "Time A" }} <span class="text-muted">vs</span> {{ jogo.time_b or "Time B" }}
               </h5>
               <p class="text-center text-secondary small mb-3">
                 📅 {{ jogo.data_hora.strftime("%d/%m %H:%M") if jogo.data_hora else "Data não definida" }}
@@ -30,16 +30,16 @@
               <!-- Odds principais -->
               <div class="d-flex justify-content-around mb-3">
                 <button class="btn btn-sm btn-outline-primary add-aposta principal"
-                        data-jogo="{{ jogo.id }}" data-time="{{ jogo.time_a }}" data-odd="{{ jogo.odd_a }}">
-                  {{ jogo.time_a }} <span class="fw-bold">({{ '%.2f' % jogo.odd_a }})</span>
+                        data-jogo="{{ jogo.id }}" data-time="{{ jogo.time_a or 'Time A' }}" data-odd="{{ jogo.odd_a or 1 }}">
+                  {{ jogo.time_a or 'Time A' }} <span class="fw-bold">({{ '%.2f' % (jogo.odd_a or 1) }})</span>
                 </button>
                 <button class="btn btn-sm btn-outline-primary add-aposta principal"
-                        data-jogo="{{ jogo.id }}" data-time="Empate" data-odd="{{ jogo.odd_x }}">
-                  Empate <span class="fw-bold">({{ '%.2f' % jogo.odd_x }})</span>
+                        data-jogo="{{ jogo.id }}" data-time="Empate" data-odd="{{ jogo.odd_x or 1 }}">
+                  Empate <span class="fw-bold">({{ '%.2f' % (jogo.odd_x or 1) }})</span>
                 </button>
                 <button class="btn btn-sm btn-outline-primary add-aposta principal"
-                        data-jogo="{{ jogo.id }}" data-time="{{ jogo.time_b }}" data-odd="{{ jogo.odd_b }}">
-                  {{ jogo.time_b }} <span class="fw-bold">({{ '%.2f' % jogo.odd_b }})</span>
+                        data-jogo="{{ jogo.id }}" data-time="{{ jogo.time_b or 'Time B' }}" data-odd="{{ jogo.odd_b or 1 }}">
+                  {{ jogo.time_b or 'Time B' }} <span class="fw-bold">({{ '%.2f' % (jogo.odd_b or 1) }})</span>
                 </button>
               </div>
 
@@ -50,8 +50,8 @@
                 <div class="d-flex flex-wrap gap-2">
                   {% for ex in jogo.extras %}
                   <button class="btn btn-sm btn-outline-secondary add-aposta extra"
-                          data-jogo="{{ jogo.id }}" data-time="{{ ex.descricao }}" data-odd="{{ ex.odd }}">
-                    {{ ex.descricao }} <span class="fw-bold">({{ '%.2f' % ex.odd }})</span>
+                          data-jogo="{{ jogo.id }}" data-time="{{ ex.descricao or 'Extra' }}" data-odd="{{ ex.odd or 1 }}">
+                    {{ ex.descricao or 'Extra' }} <span class="fw-bold">({{ '%.2f' % (ex.odd or 1) }})</span>
                   </button>
                   {% endfor %}
                 </div>
@@ -101,7 +101,7 @@ document.querySelectorAll(".add-aposta").forEach(btn => {
   btn.addEventListener("click", () => {
     const jogo = btn.dataset.jogo;
     const time = btn.dataset.time;
-    const odd = parseFloat(btn.dataset.odd);
+    const odd = parseFloat(btn.dataset.odd || 1);
     const tipo = btn.classList.contains("principal") ? "principal" : "extra";
 
     // Bloqueia 2 principais no mesmo jogo
