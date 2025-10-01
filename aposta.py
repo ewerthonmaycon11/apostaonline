@@ -135,12 +135,7 @@ def calc_potential(stake, total_odd):
     return round(stake * total_odd, 2)
 
 # ------------------ ROTAS ------------------
-@app.route("/update_schema")
-def update_schema():
-    # Removendo a tentativa de ALTER TABLE, pois o LEFT JOIN no /historico é a abordagem correta.
-    # Se quiser forçar o snapshot do jogo na aposta, você precisará reintroduzir o ALTER TABLE aqui
-    # e ajustar os INSERTs nas rotas /apostar e /aposta_multipla
-    return "O uso de LEFT JOIN foi mantido para carregar o histórico. Nenhuma alteração de schema necessária."
+
 
 @app.route("/")
 def index():
@@ -148,30 +143,39 @@ def index():
         return redirect(url_for("dashboard"))
     return render_template("login.html")
 
+from datetime import timedelta
+
+# Configura o tempo de vida da sessão (exemplo: 6 horas)
+app.permanent_session_lifetime = timedelta(hours=6)
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        login_field = request.form.get("email") or request.form.get("username") or request.form.get("usuario")
-        senha = request.form.get("senha") or request.form.get("password")
-        if not login_field or not senha:
-            flash("Preencha credenciais.", "warning")
-            return redirect(url_for("login"))
+        email = request.form.get("email")
+        senha = request.form.get("senha")
 
-        conn = get_conn()
-        c = conn.cursor()
-        c.execute("SELECT * FROM usuarios WHERE (email=%s OR nome=%s) AND senha=%s", (login_field, login_field, senha))
-        user = c.fetchone()
+        conn = psycopg2.connect(DB_URL)
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+        cur.execute("SELECT * FROM usuarios WHERE email = %s", (email,))
+        usuario = cur.fetchone()
+
+        cur.close()
         conn.close()
-        if user:
-            session["usuario_id"] = user["id"]
-            session["usuario_nome"] = user["nome"]
-            session["is_admin"] = bool(user["is_admin"])
-            flash(f"Bem-vindo, {user['nome'] or user['email']}!", "success")
-            if user["is_admin"]:
-                return redirect(url_for("admin_dashboard"))
-            return redirect(url_for("dashboard"))
-        flash("Credenciais inválidas.", "danger")
+
+        if usuario and usuario["senha"] == senha:  # aqui você pode usar hash se já tiver
+            session.permanent = True  # mantém a sessão viva pelo tempo definido acima
+            session["user_id"] = usuario["id"]  # salva o id do usuário
+            session["user_nome"] = usuario["nome"]  # opcional, se quiser mostrar na navbar
+
+            flash("Login realizado com sucesso!", "success")
+            return redirect(url_for("index"))  # vai pra home ou dashboard
+
+        else:
+            flash("Credenciais inválidas. Tente novamente.", "danger")
+
     return render_template("login.html")
+
 
 @app.route("/registrar", methods=["GET", "POST"])
 def registrar():
@@ -878,6 +882,7 @@ def logout():
 # ------------------ RODAR ------------------
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
 
 
 
