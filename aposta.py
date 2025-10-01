@@ -260,21 +260,24 @@ def aposta_multipla():
 
     data = request.get_json()
     selecoes = data.get("selecoes", [])
-    valor = float(data.get("valor", 0))
+    try:
+        valor = float(data.get("valor", 0))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "erro": "Valor inválido."})
 
     if not selecoes or valor <= 0:
         return jsonify({"ok": False, "erro": "Dados inválidos."})
 
     # calcula odd total e retorno potencial
     try:
-        odd_list = [float(s["odd"]) for s in selecoes]
+        odd_list = [float(s.get("odd", 0)) for s in selecoes]
         odd_total = calc_total_odd(odd_list)
         retorno = calc_potential(valor, odd_total)
     except Exception as e:
         return jsonify({"ok": False, "erro": f"Erro ao calcular odds: {e}"})
 
     conn = get_conn()
-    c = conn.cursor()
+    c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     # pega saldo do usuário
     c.execute("SELECT saldo FROM usuarios WHERE id=%s", (session["usuario_id"],))
@@ -298,36 +301,50 @@ def aposta_multipla():
         "VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
         (session["usuario_id"], valor, odd_total, retorno, "pendente", now)
     )
-    bet_id = c.fetchone()[0]
+    bet_row = c.fetchone()
+    if not bet_row:
+        conn.rollback()
+        conn.close()
+        return jsonify({"ok": False, "erro": "Erro ao criar aposta."})
+
+    bet_id = bet_row["id"]
 
     # salva seleções em bet_selections com info do jogo
     for s in selecoes:
-        # pega info do jogo
-        c.execute("SELECT time_a, time_b, data_hora FROM jogos WHERE id=%s", (s.get("jogo_id"),))
+        jogo_id = s.get("jogo_id")
+        if not jogo_id:
+            continue
+
+        c.execute("SELECT time_a, time_b, data_hora FROM jogos WHERE id=%s", (jogo_id,))
         jogo_info = c.fetchone()
+
+        time_a = jogo_info["time_a"] if jogo_info else "Indefinido"
+        time_b = jogo_info["time_b"] if jogo_info else "Indefinido"
+        data_hora = jogo_info["data_hora"] if jogo_info else None
 
         c.execute(
             "INSERT INTO bet_selections (bet_id, jogo_id, tipo, escolha, odd, resultado) "
             "VALUES (%s, %s, %s, %s, %s, %s)",
             (
                 bet_id,
-                s.get("jogo_id"),
-                s.get("tipo"),
-                s.get("escolha"),
-                float(s.get("odd")),
+                jogo_id,
+                s.get("tipo", "Indefinido"),
+                s.get("escolha", "Indefinido"),
+                float(s.get("odd", 0)),
                 "pendente"
             )
         )
 
         # adiciona info do jogo pro retorno JSON (opcional)
-        s["time_a"] = jogo_info["time_a"] if jogo_info else None
-        s["time_b"] = jogo_info["time_b"] if jogo_info else None
-        s["data_hora"] = jogo_info["data_hora"] if jogo_info else None
+        s["time_a"] = time_a
+        s["time_b"] = time_b
+        s["data_hora"] = data_hora
 
     conn.commit()
     conn.close()
 
-    return jsonify({"ok": True, "retorno": retorno, "bet_id": bet_id})
+    return jsonify({"ok": True, "retorno": retorno, "bet_id": bet_id, "selecoes": selecoes})
+
 
 
 
@@ -739,6 +756,7 @@ def logout():
 # ------------------ RODAR ------------------
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
 
 
 
