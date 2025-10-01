@@ -405,9 +405,11 @@ def admin_dashboard():
     if not session.get("is_admin"):
         flash("Acesso negado.", "danger")
         return redirect(url_for("login"))
+
     conn = get_conn()
     c = conn.cursor()
-    # transações pendentes
+
+    # Transações pendentes
     c.execute("""
         SELECT t.*, u.nome as usuario_nome 
         FROM transacoes t 
@@ -415,20 +417,54 @@ def admin_dashboard():
         WHERE t.status='pendente'
     """)
     transacoes = [row_to_dict(r) for r in c.fetchall()]
-    # apostas pendentes
+
+    # Apostas pendentes
     c.execute("""
-        SELECT b.*, u.nome as usuario_nome 
-        FROM bets b 
-        JOIN usuarios u ON b.usuario_id=u.id 
-        WHERE b.status='pendente' 
+        SELECT b.*, u.nome as usuario_nome
+        FROM bets b
+        JOIN usuarios u ON b.usuario_id = u.id
+        WHERE b.status='pendente'
         ORDER BY b.criado_em DESC
     """)
-    apostas = [row_to_dict(r) for r in c.fetchall()]
-    # jogos
+    apostas_pendentes_rows = c.fetchall()
+
+    apostas_pendentes = []
+    for b in apostas_pendentes_rows:
+        bdict = row_to_dict(b)
+        # Pega seleções da aposta
+        c.execute("SELECT bs.*, j.time_a, j.time_b, j.data_hora FROM bet_selections bs LEFT JOIN jogos j ON bs.jogo_id = j.id WHERE bs.bet_id=%s", (b['id'],))
+        bdict['selections'] = [row_to_dict(s) for s in c.fetchall()]
+        apostas_pendentes.append(bdict)
+
+    # NOVO: Apostas finalizadas (para a segunda tabela)
+    c.execute("""
+        SELECT b.*, u.nome as usuario_nome
+        FROM bets b
+        JOIN usuarios u ON b.usuario_id = u.id
+        WHERE b.status IN ('ganho', 'perdido')
+        ORDER BY b.criado_em DESC
+    """)
+    apostas_finalizadas_rows = c.fetchall()
+
+    apostas_finalizadas = []
+    for b in apostas_finalizadas_rows:
+        bdict = row_to_dict(b)
+        c.execute("SELECT bs.*, j.time_a, j.time_b, j.data_hora FROM bet_selections bs LEFT JOIN jogos j ON bs.jogo_id = j.id WHERE bs.bet_id=%s", (b['id'],))
+        bdict['selections'] = [row_to_dict(s) for s in c.fetchall()]
+        apostas_finalizadas.append(bdict)
+    
+    # Jogos (caso queira mostrar também)
     c.execute("SELECT * FROM jogos ORDER BY data_hora")
     jogos = [row_to_dict(r) for r in c.fetchall()]
+
     conn.close()
-    return render_template("admin.html", transacoes=transacoes, apostas=apostas, jogos=jogos)
+    return render_template(
+        "admin_dashboard.html", 
+        transacoes=transacoes, 
+        apostas_pendentes=apostas_pendentes, # Passa a variável correta
+        apostas_finalizadas=apostas_finalizadas, # Passa a variável correta
+        jogos=jogos
+    )
 
 @app.route("/admin/approve_transacao/<int:tid>")
 def admin_approve_transacao(tid):
@@ -603,3 +639,4 @@ def logout():
 # ------------------ RODAR ------------------
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
