@@ -17,24 +17,6 @@ DB_URL = os.getenv("DATABASE_URL", "postgresql://apostaonline_user:rM2mWO5FaaCmM
 
 
 
-conn = psycopg2.connect(os.getenv("DATABASE_URL"))  # string de conexão da web
-cur = conn.cursor()
-
-cur.execute("""
-CREATE TABLE IF NOT EXISTS apostas (
-    id SERIAL PRIMARY KEY,
-    usuario_id INT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
-    valor NUMERIC(10,2) NOT NULL,
-    odd_total NUMERIC(10,2) NOT NULL,
-    retorno_potencial NUMERIC(10,2) NOT NULL,
-    selecoes JSONB NOT NULL,
-    data_hora TIMESTAMP NOT NULL DEFAULT NOW()
-);
-""")
-
-conn.commit()
-cur.close()
-conn.close()
 
 
 
@@ -157,6 +139,29 @@ def calc_total_odd(selections):
 
 def calc_potential(stake, total_odd):
     return round(stake * total_odd, 2)
+
+
+
+conn = psycopg2.connect(os.getenv("DATABASE_URL"))  # string de conexão da web
+cur = conn.cursor()
+
+cur.execute("""
+CREATE TABLE IF NOT EXISTS apostas (
+    id SERIAL PRIMARY KEY,
+    usuario_id INT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    valor NUMERIC(10,2) NOT NULL,
+    odd_total NUMERIC(10,2) NOT NULL,
+    retorno_potencial NUMERIC(10,2) NOT NULL,
+    selecoes JSONB NOT NULL,
+    data_hora TIMESTAMP NOT NULL DEFAULT NOW()
+);
+""")
+
+conn.commit()
+cur.close()
+conn.close()
+
+
 
 # ------------------ ROTAS ------------------
 @app.route("/")
@@ -744,6 +749,7 @@ def logout():
 # ------------------ RODAR ------------------
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
 
 
 
