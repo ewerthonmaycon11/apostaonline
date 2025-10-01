@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Painel Admin{% endblock %}
+{% block conteudo %}
+<h2 class="text-orange mb-4">Painel do Admin</h2>
+
+<div class="card mb-4 p-3">
+    <h4>Adicionar Jogo</h4>
+    <form method="POST" action="{{ url_for('admin_dashboard') }}">
+        <div class="row mb-2">
+            <div class="col">
+                <input class="form-control" name="time1" placeholder="Time 1" required>
+            </div>
+            <div class="col">
+                <input class="form-control" name="time2" placeholder="Time 2" required>
+            </div>
+        </div>
+        <div class="row mb-2">
+            <div class="col">
+                <input class="form-control" name="odds_time1" type="number" step="0.01" placeholder="Odd Time 1" required>
+            </div>
+            <div class="col">
+                <input class="form-control" name="odds_empate" type="number" step="0.01" placeholder="Odd Empate" required>
+            </div>
+            <div class="col">
+                <input class="form-control" name="odds_time2" type="number" step="0.01" placeholder="Odd Time 2" required>
+            </div>
+        </div>
+        <button class="btn btn-primary mt-2" type="submit">Adicionar Jogo</button>
+    </form>
+</div>
+
+<div class="card mb-4 p-3">
+    <h4>Aprovar/Reprovar Depósitos e Saques</h4>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Usuário</th>
+                <th>Tipo</th>
+                <th>Valor</th>
+                <th>Status</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for transacao in transacoes %}
+            <tr>
+                <td>{{ transacao.usuario }}</td>
+                <td>{{ transacao.tipo }}</td>
+                <td>R$ {{ transacao.valor }}</td>
+                <td>{{ transacao.status }}</td>
+                <td>
+                    {% if transacao.status == 'Pendente' %}
+                    <a href="{{ url_for('aprovar_transacao', id=transacao.id) }}" class="btn btn-success btn-sm">Aprovar</a>
+                    <a href="{{ url_for('reprovar_transacao', id=transacao.id) }}" class="btn btn-danger btn-sm">Reprovar</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="card mb-4 p-3">
+    <h4>Apostas Recentes</h4>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Usuário</th>
+                <th>Jogo</th>
+                <th>Aposta Principal</th>
+                <th>Extras</th>
+                <th>Valor</th>
+                <th>Ganho Potencial</th>
+                <th>Resultado</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for aposta in apostas %}
+            <tr>
+                <td>{{ aposta.usuario }}</td>
+                <td>{{ aposta.jogo }}</td>
+                <td>{{ aposta.aposta_principal }}</td>
+                <td>{{ aposta.extras|join(', ') }}</td>
+                <td>R$ {{ aposta.valor }}</td>
+                <td>R$ {{ aposta.ganho_potencial }}</td>
+                <td>
+                    {% if aposta.resultado is none %}
+                        <a href="{{ url_for('definir_resultado', id=aposta.id, resultado='vitoria') }}" class="btn btn-success btn-sm">Vitória</a>
+                        <a href="{{ url_for('definir_resultado', id=aposta.id, resultado='derrota') }}" class="btn btn-danger btn-sm">Derrota</a>
+                    {% else %}
+                        {{ aposta.resultado }}
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

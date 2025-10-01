@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Painel — Apostas{% endblock %}
+
+{% block conteudo %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h3 class="mb-0">Olá, {{ usuario.nome }}</h3>
+    <div class="small-muted">Saldo: <strong>R$ {{ '%.2f' % usuario.saldo }}</strong></div>
+  </div>
+  <div>
+    <a href="{{ url_for('depositar') }}" class="btn btn-sm btn-outline-secondary me-2">Depositar</a>
+    <a href="{{ url_for('historico') }}" class="btn btn-sm btn-outline-secondary">Minhas Apostas</a>
+  </div>
+</div>
+
+<h5 class="mb-3">Jogos Disponíveis</h5>
+<div class="row">
+  {% for jogo in jogos %}
+  <div class="col-md-6 col-lg-4 mb-3">
+    <div class="card p-3 h-100">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <h6 class="mb-1">{{ jogo.time_a }} <span class="small-muted">v</span> {{ jogo.time_b }}</h6>
+          <div class="small-muted">{{ jogo.data_hora or "Data não definida" }}</div>
+        </div>
+        <div class="text-end">
+          <a href="{{ url_for('ver_jogo', jogo_id=jogo.id) }}" class="btn btn-sm btn-accent">Apostar</a>
+        </div>
+      </div>
+
+      <hr class="my-2">
+
+      <div class="d-flex justify-content-between small-muted">
+        <div>Casa: <strong>{{ '%.2f' % jogo.odd_a }}</strong></div>
+        <div>Empate: <strong>{{ '%.2f' % jogo.odd_x }}</strong></div>
+        <div>Fora: <strong>{{ '%.2f' % jogo.odd_b }}</strong></div>
+      </div>
+
+      {% if jogo.extras and jogo.extras|length > 0 %}
+      <hr class="my-2">
+      <div class="small-muted">Extras:</div>
+      <ul class="small mb-0">
+        {% for ex in jogo.extras %}
+          <li>{{ ex.descricao }} — {{ '%.2f' % ex.odd }}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </div>
+  </div>
+  {% else %}
+  <div class="col-12">
+    <div class="card p-3">Nenhum jogo disponível no momento.</div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
