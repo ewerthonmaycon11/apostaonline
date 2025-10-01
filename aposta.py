@@ -114,19 +114,19 @@ def init_db():
 
 
     # criando a tabela, alinhamento correto
-cur.execute("""
-CREATE TABLE IF NOT EXISTS apostas (
-    id SERIAL PRIMARY KEY,
-    usuario_id INT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
-    valor NUMERIC(10,2) NOT NULL,
-    odd_total NUMERIC(10,2) NOT NULL,
-    retorno_potencial NUMERIC(10,2) NOT NULL,
-    selecoes JSONB NOT NULL,
-    data_hora TIMESTAMP NOT NULL DEFAULT NOW()
-);
-""")
-conn.commit()
-cur.close()
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS apostas (
+        id SERIAL PRIMARY KEY,
+        usuario_id INT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+        valor NUMERIC(10,2) NOT NULL,
+        odd_total NUMERIC(10,2) NOT NULL,
+        retorno_potencial NUMERIC(10,2) NOT NULL,
+        selecoes JSONB NOT NULL,
+        data_hora TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+    """)
+    conn.commit()
+    cur.close()
 
         
 
@@ -753,6 +753,7 @@ def logout():
 # ------------------ RODAR ------------------
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
 
 
 
